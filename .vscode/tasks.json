@@ -1,0 +1,47 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe compile-run",
+            "type": "shell",
+            "label": "Run",
+            "problemMatcher": []
+        },
+        {
+            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe compile",
+            "type": "shell",
+            "label": "Compile",
+            "problemMatcher": []
+        },
+        {
+            "command": "nasm -f win64 assembled.asm -o bin/temp_output.obj",
+            "type": "shell",
+            "label": "Assemble",
+            "problemMatcher": []
+        },
+        {
+            "command": "nasm -f win64 assembled.asm -o bin/temp_output.obj & gcc bin/temp_output.obj -o bin/compiler.exe & cd bin & compiler.exe compile",
+            "type": "shell",
+            "label": "Assemble and Run",
+            "problemMatcher": []
+        },
+        {
+            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe print-ast",
+            "type": "shell",
+            "label": "Run AST",
+            "problemMatcher": []
+        },
+        {
+            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe tokens",
+            "type": "shell",
+            "label": "Tokens",
+            "problemMatcher": []
+        },
+        {
+            "command": "gcc src/compiler.c -o bin/compiler.exe",
+            "type": "shell",
+            "label": "Build",
+            "problemMatcher": []
+        }
+    ]
+}
