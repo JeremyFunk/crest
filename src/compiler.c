@@ -1,4 +1,4 @@
-#include "generator/generator-win.h"
+#include "generator/generator.h"
 
 int print_tokens(FILE *file) {
     Token token;
@@ -129,11 +129,10 @@ void pretty_print_ast(AstNode *ast, int level) {
 }
 
 int print_full_ast(FILE *file){
-    consume_next_token(file);
-
+    setup_parser(file);
 
     AstNode *ast = parse_expression(file);
-    while (ast && token.type != TOKEN_EOF) {
+    while (ast && ast->type != TOKEN_EOF) {
         // Process the AST or store it for later use
         // For now, just print the node type
         pretty_print_ast(ast, 0);
@@ -161,7 +160,7 @@ int compile(FILE *file){
         return 1;
     }
 
-    consume_next_token(file);
+    setup_parser(file);
 
     AstNode *ast = parse_expression(file);
     if (!out_file) {
@@ -172,7 +171,7 @@ int compile(FILE *file){
     SymbolTableEntry *symbol_table = NULL;
     fprintf(stderr, "Compiling...\n");
     int line = 1;
-    while (ast && token.type != TOKEN_EOF) {
+    while (ast && ast->type != TOKEN_EOF) {
         fprintf(stderr, "Line %d - %s\n", line++, get_node_type_name(ast->type));
 
         emit_code(ast, &symbol_table, out_file);
@@ -187,6 +186,7 @@ int compile(FILE *file){
     }
 
     fclose(out_file);
+
     optimize(&symbol_table, asm_file_name);
 
     SymbolTableEntry *entry = symbol_table;

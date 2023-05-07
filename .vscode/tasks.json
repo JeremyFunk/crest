@@ -2,13 +2,13 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe compile-run",
+            "command": "compile.bat & cd bin & compiler.exe compile-run",
             "type": "shell",
             "label": "Run",
             "problemMatcher": []
         },
         {
-            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe compile",
+            "command": "compile.bat & cd bin & compiler.exe compile",
             "type": "shell",
             "label": "Compile",
             "problemMatcher": []
@@ -26,19 +26,19 @@
             "problemMatcher": []
         },
         {
-            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe print-ast",
+            "command": "compile.bat & cd bin & compiler.exe print-ast",
             "type": "shell",
             "label": "Run AST",
             "problemMatcher": []
         },
         {
-            "command": "gcc src/compiler.c -o bin/compiler.exe & cd bin & compiler.exe tokens",
+            "command": "compile.bat & cd bin & compiler.exe tokens",
             "type": "shell",
             "label": "Tokens",
             "problemMatcher": []
         },
         {
-            "command": "gcc src/compiler.c -o bin/compiler.exe",
+            "command": "compile.bat",
             "type": "shell",
             "label": "Build",
             "problemMatcher": []

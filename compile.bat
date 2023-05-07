@@ -1,0 +1,1 @@
+gcc src/compiler.c src/parser/parser.c src/lexer/lexer.c src/generator/generator-win.c src/lang/parser/parser-lang.c src/lang/lexer/lexer-lang.c -o bin/compiler.exe

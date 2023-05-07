@@ -1,13 +1,13 @@
-declare a, int8
+declare a, int32
 store a, 3
 
-declare b, int8
+declare b, int32
 store b, 8
 
-declare c, int8
+declare c, int32
 store c, add a, b
 
-declare d, int8
+declare d, int32
 store d, mul c, 3
 
 print d

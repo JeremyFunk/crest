@@ -12,6 +12,12 @@
         "compare": "c",
         "tuple": "c",
         "utility": "c",
-        "xmemory": "c"
+        "xmemory": "c",
+        "common.h": "c",
+        "parser-lang.h": "c",
+        "bit": "c",
+        "cstddef": "c",
+        "limits": "c",
+        "lexer-lang.h": "c"
     }
 }
