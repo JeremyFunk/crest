@@ -1,15 +1,13 @@
-declare a, int32
-store a, 3
+declare a, int16
+declare b, int16
 
-declare b, int32
-store b, 8
+store a, 12
+store b, 23
 
-declare c, int32
+declare c, int16
 store c, add a, b
 
-declare d, int32
+declare d, int16
 store d, mul c, 3
 
 print d
-
-halt

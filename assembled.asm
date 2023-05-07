@@ -10,18 +10,17 @@ extern printf
 
 main:
 
-sub rsp, 16 ; Calculated stack size
+sub rsp, 8 ; Calculated stack size
 
-mov dword [rsp + 0], 3
-mov dword [rsp + 4], 8
-mov eax, dword [rsp + 0]
-add eax, dword [rsp + 4]
-mov dword [rsp + 8], eax
-mov eax, dword [rsp + 8]
-imul eax, 3
-mov dword [rsp + 12], eax
-lea rcx, [format_int32]
-mov edx, dword [rsp + 12]
+mov word [rsp + 0], 12
+mov word [rsp + 2], 23
+mov ax, word [rsp + 0]
+add ax, word [rsp + 2]
+mov word [rsp + 4], ax
+mov ax, word [rsp + 4]
+imul ax, 3
+mov word [rsp + 6], ax
+lea rcx, [format_int16]
+movzx edx, word [rsp + 6]
 mov rax, 0
 call printf
-ret

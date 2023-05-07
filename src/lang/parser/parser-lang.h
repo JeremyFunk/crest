@@ -13,7 +13,7 @@ typedef enum {
     NODE_ADD,
     NODE_MUL,
 
-    // Functions
+    // Inline Functions
     NODE_PRINT,
 
 
@@ -54,6 +54,8 @@ AstNode *create_ast_node(NodeType type, AstNode *left, AstNode *right, char *val
 
 bool is_primitive(Primitive primitive);
 bool is_primitive_int(Primitive primitive);
+bool is_inline_function(NodeType type);
+bool is_operator(NodeType type);
 
 char* get_primitive_name(Primitive primitive);
 char* get_node_type_name(NodeType type);

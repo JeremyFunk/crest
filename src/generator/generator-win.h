@@ -1,6 +1,7 @@
 #ifndef GENERATOR_WIN_H
 #define GENERATOR_WIN_H
 
+#include "win-helpers.h"
 #include "generator.h"
 
 typedef struct PrimitiveData {
@@ -13,14 +14,12 @@ typedef struct PrimitiveData {
     char* move_to_64;
 
 } PrimitiveData;
+PrimitiveData get_primitive_data(Primitive p);
 
-void emit_int(AstNode *node, FILE *out_file);
-void emit_identifier(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
 void emit_declare(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
-void emit_load_int32(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
 void emit_store(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
-void emit_add(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
-void emit_multiply(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
-void emit_print(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
+void emit_inline_function(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
+
+char* value_or_stack_reference(AstNode *node, SymbolTableEntry **symbol_table);
 
 #endif

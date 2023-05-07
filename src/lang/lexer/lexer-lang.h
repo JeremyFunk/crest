@@ -23,7 +23,7 @@ typedef enum {
     TOKEN_ADD,
     TOKEN_MUL,
 
-    // Functions
+    // Inline Functions
     TOKEN_PRINT,
     
     // Symbols

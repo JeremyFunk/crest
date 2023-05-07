@@ -1,7 +1,10 @@
 #include "generator-win.h"
+#include "inline-functions/inline-print.h"
+#include "operators/add.h"
+#include "operators/mul.h"
 
 const PrimitiveData PRIMITIVE_DATA[] = {
-    {PRIMITIVE_INT8, 1, "al", "bl", "cl", "dl", "byte", "movzx"},
+    {PRIMITIVE_INT8, 1, "al", "bl", "cl", "dl", "byte", "movsx"},
     {PRIMITIVE_INT16, 2, "ax", "bx", "cx", "dx", "word", "movzx"},
     {PRIMITIVE_INT32, 4, "eax", "ebx", "ecx", "edx", "dword", "mov"},
     {PRIMITIVE_INT64, 8, "rax", "rbx", "rcx", "rdx", "qword", "mov"},
@@ -18,6 +21,9 @@ PrimitiveData get_primitive_data(Primitive p) {
     exit(1);
 }
 
+// ------------------------------
+//   Symbol table functions
+// ------------------------------
 
 SymbolTableEntry *add_symbol(SymbolTableEntry **symbol_table, const char *name, int size) {
     // fprintf(stderr, "Adding symbol '%s' with offset %d\n", name, offset);
@@ -47,50 +53,11 @@ int find_symbol_offset(SymbolTableEntry **symbol_table, const char *name) {
     return 0;
 }
 
-char* get_print_format(Primitive p){
-    switch(p){
-        case PRIMITIVE_INT8:
-            return "format_int8";
-        case PRIMITIVE_INT16:
-            return "format_int16";
-        case PRIMITIVE_INT32:
-            return "format_int32";
-        case PRIMITIVE_INT64:
-            return "format_int64";
-        default:
-            fprintf(stderr, "Error: Unknown primitive type %d\n", p);
-            return "format_int64";
-    }
-}
+// ------------------------------
+//   Helper functions
+// ------------------------------
 
-
-void emit_int(AstNode *node, FILE *out_file) {
-    fprintf(out_file, "push %s\n", node->value);
-}
-
-void emit_identifier(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
-    int offset = find_symbol_offset(symbol_table, node->value);
-    if (offset != -1) {
-        PrimitiveData prim = get_primitive_data(node->primitive);
-
-        fprintf(out_file, "mov %s, %s [rsp + %d]\n", prim.directive, prim.accumulator1, offset); // Load the 32-bit value into the EAX register
-        // fprintf(out_file, "push rax\n"); // Push the 64-bit RAX register onto the stack
-    } else {
-        fprintf(stderr, "Error: Undefined variable '%s'\n", node->value);
-    }
-}
-
-
-void emit_declare(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
-    int size = get_primitive_data(node->primitive).size;
-    add_symbol(symbol_table, node->value, size);
-}
-
-void emit_load_int32(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
-    emit_int(node->left, out_file);
-}
-
-char* dword_or_value(AstNode *node, SymbolTableEntry **symbol_table){
+char* value_or_stack_reference(AstNode *node, SymbolTableEntry **symbol_table){
     static char buffer[64];
     if(node->type == NODE_VALUE_INT){
         return node->value;
@@ -103,77 +70,78 @@ char* dword_or_value(AstNode *node, SymbolTableEntry **symbol_table){
     }
 }
 
+
+// ------------------------------
+//   Emitting predefines
+// ------------------------------
+
+void emit_inline_function(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
+   if(node->type == NODE_PRINT){
+        emit_print(node, symbol_table, out_file);
+        return; 
+    }
+
+    fprintf(stderr, "Error: Unknown function '%s'\n", node->value);
+    exit(1);
+}
+
+void emit_operator(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
+    if (node->type == NODE_ADD) {
+        emit_add(node, symbol_table, out_file);
+        return;
+    }
+
+    if (node->type == NODE_MUL){
+        emit_mul(node, symbol_table, out_file);
+        return;
+    }
+}
+
+// ------------------------------
+// Emitting instructions
+// ------------------------------
+
+void emit_declare(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
+    int size = get_primitive_data(node->primitive).size;
+    add_symbol(symbol_table, node->value, size);
+}
+
 void emit_store(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
     int offset = find_symbol_offset(symbol_table, node->left->value);
 
     PrimitiveData prim = get_primitive_data(node->left->primitive);
 
-    if(node->right->type == NODE_ADD){
-        emit_add(node->right, symbol_table, out_file);
-        fprintf(out_file, "mov %s [rsp + %d], %s\n", prim.directive, offset, prim.accumulator1);
-    }else if(node->right->type == NODE_MUL){
-        emit_multiply(node->right, symbol_table, out_file);
+    if(is_operator(node->right->type)){
+        emit_operator(node->right, symbol_table, out_file);
         fprintf(out_file, "mov %s [rsp + %d], %s\n", prim.directive, offset, prim.accumulator1);
     }else{
-        fprintf(out_file, "mov %s [rsp + %d], %s\n", prim.directive, offset, dword_or_value(node->right, symbol_table));
+        fprintf(out_file, "mov %s [rsp + %d], %s\n", prim.directive, offset, value_or_stack_reference(node->right, symbol_table));
     }
-}
-
-
-void emit_add(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
-    PrimitiveData prim = get_primitive_data(node->primitive);
-
-    fprintf(out_file, "mov %s, %s\n", prim.accumulator1, dword_or_value(node->left, symbol_table));
-    fprintf(out_file, "add %s, %s\n", prim.accumulator1, dword_or_value(node->right, symbol_table));
-}
-
-void emit_multiply(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
-    PrimitiveData prim = get_primitive_data(node->primitive);
-
-    fprintf(out_file, "mov %s, %s\n", prim.accumulator1, dword_or_value(node->left, symbol_table));
-    fprintf(out_file, "imul %s, %s\n", prim.accumulator1, dword_or_value(node->right, symbol_table));
-}
-
-void emit_print(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
-    char* format = get_print_format(node->left->primitive);
-    fprintf(out_file, "lea rcx, [%s]\n", format); // Load the address of the format string into RCX
-    //emit_identifier(node->left, symbol_table, out_file, "edx"); // Push the value to print onto the stack
-    PrimitiveData prim = get_primitive_data(node->left->primitive);
-
-    fprintf(out_file, "%s edx, %s [rsp + %d]\n", prim.move_to_64, prim.directive, find_symbol_offset(symbol_table, node->left->value));
-    
-    fprintf(out_file, "mov rax, 0\n"); // Clear the RAX register (required for variadic functions)
-    fprintf(out_file, "call printf\n");
 }
 
 void emit_halt(AstNode *node, FILE *out_file) {
     fprintf(out_file, "ret\n");
 }
 
+// ------------------------------
+//   High-level emit functions
+// ------------------------------
+
 void emit_code(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
     if (!node) return;
 
+    if(is_inline_function(node->type)){
+        emit_inline_function(node, symbol_table, out_file);
+        return;
+    }
+
+
     switch (node->type) {
-        // case NODE_VALUE_INT:
-        //     emit_int(node, out_file);
-        //     break;
         case NODE_DECLARE:
             emit_declare(node, symbol_table, out_file);
             break;
-        // case NODE_IDENTIFIER:
-        //     emit_identifier(node, symbol_table, out_file);
-        //     break;
         case NODE_STORE:
             emit_store(node, symbol_table, out_file);
-            break;
-        // case NODE_ADD:
-        //     emit_add(node, symbol_table, out_file);
-        //     break;
-        // case NODE_MUL:
-        //     emit_multiply(node, symbol_table, out_file);
-        //     break;
-        case NODE_PRINT:
-            emit_print(node, symbol_table, out_file);
             break;
         case NODE_HALT:
             emit_halt(node, out_file);

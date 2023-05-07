@@ -17,6 +17,12 @@ bool is_primitive(Primitive primitive) {
 bool is_primitive_int(Primitive primitive) {
     return primitive >= PRIMITIVE_INT8 && primitive <= PRIMITIVE_INT64;
 }
+bool is_inline_function(NodeType type){
+    return type == NODE_PRINT;
+}
+bool is_operator(NodeType type){
+    return type == NODE_ADD || type == NODE_MUL;
+}
 
 char* get_primitive_name(Primitive primitive) {
     switch (primitive) {

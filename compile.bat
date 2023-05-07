@@ -1,1 +1,10 @@
-gcc src/compiler.c src/parser/parser.c src/lexer/lexer.c src/generator/generator-win.c src/lang/parser/parser-lang.c src/lang/lexer/lexer-lang.c -o bin/compiler.exe
+@echo off
+setlocal enabledelayedexpansion
+set "gcc_cmd=gcc"
+
+for /R src %%f in (*.c) do (
+    set "gcc_cmd=!gcc_cmd! "%%f""
+)
+
+%gcc_cmd% -o bin/compiler.exe
+endlocal
