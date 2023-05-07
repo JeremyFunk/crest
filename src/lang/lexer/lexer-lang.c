@@ -31,8 +31,12 @@ char* get_token_type_name(TokenType t){
             return "TOKEN_STORE";
         case TOKEN_ADD:
             return "TOKEN_ADD";
+        case TOKEN_SUB:
+            return "TOKEN_SUB";
         case TOKEN_MUL:
             return "TOKEN_MUL";
+        case TOKEN_DIV:
+            return "TOKEN_DIV";
         case TOKEN_PRINT:
             return "TOKEN_PRINT";
         case TOKEN_HALT:

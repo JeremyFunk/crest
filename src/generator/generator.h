@@ -16,4 +16,5 @@ void emit_code(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file);
 void emit_prefix(SymbolTableEntry **symbol_table, FILE *out_file);
 void emit_suffix(FILE *out_file);
 void optimize(SymbolTableEntry **symbol_table, const char *out_filename);
+void emit_ast_comment(AstNode *node, FILE *out_file);
 #endif

@@ -1,7 +1,6 @@
 #include "generator-win.h"
 #include "inline-functions/inline-print.h"
-#include "operators/add.h"
-#include "operators/mul.h"
+#include "operators/basic.h"
 
 const PrimitiveData PRIMITIVE_DATA[] = {
     {PRIMITIVE_INT8, 1, "al", "bl", "cl", "dl", "byte", "movsx"},
@@ -70,6 +69,10 @@ char* value_or_stack_reference(AstNode *node, SymbolTableEntry **symbol_table){
     }
 }
 
+void emit_ast_comment(AstNode *node, FILE *out_file) {
+    fprintf(out_file, "\n; ");
+    ast_to_pretty_string(node, 0, out_file);
+}
 
 // ------------------------------
 //   Emitting predefines
@@ -91,8 +94,18 @@ void emit_operator(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_fil
         return;
     }
 
+    if (node->type == NODE_SUB) {
+        emit_sub(node, symbol_table, out_file);
+        return;
+    }
+
     if (node->type == NODE_MUL){
         emit_mul(node, symbol_table, out_file);
+        return;
+    }
+
+    if (node->type == NODE_DIV){
+        emit_div(node, symbol_table, out_file);
         return;
     }
 }
@@ -107,6 +120,7 @@ void emit_declare(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file
 }
 
 void emit_store(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
+    emit_ast_comment(node, out_file);
     int offset = find_symbol_offset(symbol_table, node->left->value);
 
     PrimitiveData prim = get_primitive_data(node->left->primitive);
@@ -151,7 +165,7 @@ void emit_code(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
 
 void emit_prefix(SymbolTableEntry **symbol_table, FILE *out_file) {
     fprintf(out_file, "section .data\n");
-    fprintf(out_file, "format_int8 db \"%%hhd\", 10, 0\n");
+    fprintf(out_file, "format_int8 db \"%%hhu\", 10, 0\n");
     fprintf(out_file, "format_int16 db \"%%hd\", 10, 0\n");
     fprintf(out_file, "format_int32 db \"%%d\", 10, 0\n");
     fprintf(out_file, "format_int64 db \"%%ld\", 10, 0\n\n");
@@ -164,7 +178,7 @@ void emit_prefix(SymbolTableEntry **symbol_table, FILE *out_file) {
 
     // Allocate space for local variables
     if (*symbol_table != NULL) {
-        fprintf(out_file, "sub rsp, %d ; Calculated stack size\n\n", (*symbol_table)->offset + (*symbol_table)->size);
+        fprintf(out_file, "sub rsp, %d ; Calculated stack size\n\n", (*symbol_table)->offset + (*symbol_table)->size + 8);
     }
 }
 

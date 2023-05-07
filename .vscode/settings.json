@@ -18,6 +18,8 @@
         "bit": "c",
         "cstddef": "c",
         "limits": "c",
-        "lexer-lang.h": "c"
+        "lexer-lang.h": "c",
+        "win-helpers.h": "c",
+        "basic.h": "c"
     }
 }

@@ -50,8 +50,12 @@ Token get_next_token(FILE *file) {
             token.type = TOKEN_STORE;
         } else if (strcmp(buffer, "add") == 0) {
             token.type = TOKEN_ADD;
+        } else if (strcmp(buffer, "sub") == 0) {
+            token.type = TOKEN_SUB;
         } else if (strcmp(buffer, "mul") == 0) {
             token.type = TOKEN_MUL;
+        } else if (strcmp(buffer, "div") == 0) {
+            token.type = TOKEN_DIV;
         } else if (strcmp(buffer, "print") == 0) {
             token.type = TOKEN_PRINT;
         } else if (strcmp(buffer, "halt") == 0) {

@@ -11,7 +11,9 @@ typedef enum {
 
     // Operators
     NODE_ADD,
+    NODE_SUB,
     NODE_MUL,
+    NODE_DIV,
 
     // Inline Functions
     NODE_PRINT,
@@ -59,5 +61,7 @@ bool is_operator(NodeType type);
 
 char* get_primitive_name(Primitive primitive);
 char* get_node_type_name(NodeType type);
+void ast_to_string(AstNode* ast, int level, FILE* file);
+void ast_to_pretty_string(AstNode* ast, int level, FILE* file);
 
 #endif

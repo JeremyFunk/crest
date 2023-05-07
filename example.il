@@ -1,13 +1,10 @@
-declare a, int16
-declare b, int16
+declare a, int8
+declare b, int8
 
-store a, 12
-store b, 23
+store a, 24
+store b, 6
 
-declare c, int16
-store c, add a, b
+declare c, int8
+store c, div a, b
 
-declare d, int16
-store d, mul c, 3
-
-print d
+print c

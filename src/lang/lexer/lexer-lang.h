@@ -21,7 +21,9 @@ typedef enum {
 
     // Operators
     TOKEN_ADD,
+    TOKEN_SUB,
     TOKEN_MUL,
+    TOKEN_DIV,
 
     // Inline Functions
     TOKEN_PRINT,

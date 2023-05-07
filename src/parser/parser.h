@@ -32,12 +32,11 @@ AstNode *parse_identifier(FILE *file);
 AstNode *parse_int_value(FILE *file);
 AstNode *parse_identifier_or_value(FILE *file);
 AstNode *parse_identifier_declaration(FILE *file);
-AstNode *parse_add(FILE *file);
-AstNode *parse_mul(FILE *file);
+AstNode *parse_operator(FILE *file, TokenType type, NodeType node_type);
 AstNode *parse_operation(FILE *file);
 AstNode *parse_instruction(FILE *file);
 AstNode *parse_declare(FILE *file);
-AstNode *parse_print_int(FILE *file);
+AstNode *parse_print(FILE *file);
 AstNode *parse_halt(FILE *file);
 
 AstNode *parse_expression(FILE *file);

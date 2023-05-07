@@ -21,7 +21,7 @@ bool is_inline_function(NodeType type){
     return type == NODE_PRINT;
 }
 bool is_operator(NodeType type){
-    return type == NODE_ADD || type == NODE_MUL;
+    return type == NODE_ADD || type == NODE_SUB || type == NODE_MUL || type == NODE_DIV;
 }
 
 char* get_primitive_name(Primitive primitive) {
@@ -60,8 +60,12 @@ char* get_node_type_name(NodeType type) {
             return "NODE_STORE";
         case NODE_ADD:
             return "NODE_ADD";
+        case NODE_SUB:
+            return "NODE_SUB";
         case NODE_MUL:
             return "NODE_MUL";
+        case NODE_DIV:
+            return "NODE_DIV";
         case NODE_PRINT:
             return "NODE_PRINT";
         case NODE_HALT:
@@ -72,5 +76,76 @@ char* get_node_type_name(NodeType type) {
             char* buffer = (char*)malloc(64);
             sprintf(buffer, "Unknown node type: %d", type);
             return buffer;
+    }
+}
+
+void ast_to_string(AstNode* ast, int level, FILE* file){
+    if (!ast) return;
+    for (int i = 0; i < level; i++) {
+        fprintf(file, "%s", "  ");
+    }
+
+    if(ast->type == NODE_IDENTIFIER){
+        fprintf(file, "%s: %s %s\n", get_node_type_name(ast->type), get_primitive_name(ast->primitive), ast->value);
+        return;
+    }
+
+    if(ast->type == NODE_DECLARE){
+        fprintf(file, "%s: %s %s\n", get_node_type_name(ast->type), get_primitive_name(ast->primitive), ast->value);
+        return;
+    }
+
+    fprintf(file, "%s: %s\n", get_node_type_name(ast->type), ast->value);
+    ast_to_string(ast->left, level + 1, file);
+    ast_to_string(ast->right, level + 1, file);
+}
+
+void ast_to_pretty_string(AstNode* ast, int level, FILE* file){
+    if (!ast) return;
+    for (int i = 0; i < level; i++) {
+        fprintf(file, "%s", "  ");
+    }
+
+    switch(ast->type){
+        case NODE_VALUE_INT:
+            fprintf(file, "int(%s)", ast->value);
+            break;
+        case NODE_DECLARE:
+            fprintf(file, "%s %s\n", ast->value, get_primitive_name(ast->primitive));
+            break;
+        case NODE_STORE:
+            fprintf(file, "%s: ", ast->left->value);
+            ast_to_pretty_string(ast->right, level, file); 
+            fprintf(file, "%s", "\n");
+            break;
+        case NODE_ADD:
+        case NODE_SUB:
+        case NODE_MUL:
+        case NODE_DIV:
+            fprintf(file, "%s(", get_primitive_name(ast->primitive));
+            ast_to_pretty_string(ast->left, level, file);
+
+            if(ast->type == NODE_ADD)
+                fprintf(file, "%s", " + ");
+            else if(ast->type == NODE_SUB)
+                fprintf(file, "%s", " - ");
+            else if(ast->type == NODE_MUL)
+                fprintf(file, "%s", " * ");
+            else if(ast->type == NODE_DIV)
+                fprintf(file, "%s", " / ");
+
+            ast_to_pretty_string(ast->right, level, file);
+            fprintf(file, "%s", ")");
+            break;
+        case NODE_IDENTIFIER:
+            fprintf(file, "%s", ast->value);
+            break;
+        case NODE_PRINT:
+            fprintf(file, "%s", "print ");
+            ast_to_pretty_string(ast->left, level, file);
+            fprintf(file, "%s", "\n");
+            break;
+        default:
+            ast_to_string(ast, level, file);
     }
 }

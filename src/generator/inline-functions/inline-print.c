@@ -17,12 +17,17 @@ char* get_print_format(Primitive p){
 }
 
 void emit_print(AstNode *node, SymbolTableEntry **symbol_table, FILE *out_file) {
+    emit_ast_comment(node, out_file);
+
     char* format = get_print_format(node->left->primitive);
     fprintf(out_file, "lea rcx, [%s]\n", format); // Load the address of the format string into RCX
 
     PrimitiveData prim = get_primitive_data(node->left->primitive);
 
-    fprintf(out_file, "%s edx, %s [rsp + %d]\n", prim.move_to_64, prim.directive, find_symbol_offset(symbol_table, node->left->value));
+    if(node->left->primitive == PRIMITIVE_INT8){
+        fprintf(out_file, "xor dx, dx\n");
+    }
+    fprintf(out_file, "mov %s, %s [rsp + %d]\n", prim.accumulator4, prim.directive, find_symbol_offset(symbol_table, node->left->value));
     
     fprintf(out_file, "mov rax, 0\n"); // Clear the RAX register (required for variadic functions)
     fprintf(out_file, "call printf\n");

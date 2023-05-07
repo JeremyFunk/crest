@@ -58,76 +58,6 @@ int print_tokens(FILE *file) {
     return 0;
 }
 
-void print_ast(AstNode *ast, int level) {
-    if (!ast) return;
-    for (int i = 0; i < level; i++) {
-        printf("  ");
-    }
-
-    if(ast->type == NODE_IDENTIFIER){
-        printf("%s: %s %s\n", get_node_type_name(ast->type), get_primitive_name(ast->primitive), ast->value);
-        return;
-    }
-
-    if(ast->type == NODE_DECLARE){
-        printf("%s: %s %s\n", get_node_type_name(ast->type), get_primitive_name(ast->primitive), ast->value);
-        return;
-    }
-
-    printf("%s: %s\n", get_node_type_name(ast->type), ast->value);
-    print_ast(ast->left, level + 1);
-    print_ast(ast->right, level + 1);
-}
-void pretty_print_ast(AstNode *ast, int level) {
-    if (!ast) return;
-    for (int i = 0; i < level; i++) {
-        printf("  ");
-    }
-
-    switch(ast->type){
-        case NODE_VALUE_INT:
-            printf("int(%s)", ast->value);
-            break;
-        case NODE_DECLARE:
-            printf("%s %s\n", ast->value, get_primitive_name(ast->primitive));
-            break;
-        case NODE_STORE:
-            printf("%s: ", ast->left->value);
-            pretty_print_ast(ast->right, level); 
-            printf("\n");
-            break;
-        case NODE_ADD:
-            printf("%s(", get_primitive_name(ast->primitive));
-            pretty_print_ast(ast->left, level);
-            printf(" + ");
-            pretty_print_ast(ast->right, level);
-            printf(")");
-            break;
-        case NODE_MUL:
-            printf("%s(", get_primitive_name(ast->primitive));
-            pretty_print_ast(ast->left, level);
-            printf(" * ");
-            pretty_print_ast(ast->right, level);
-            printf(")");
-            break;
-        case NODE_IDENTIFIER:
-            printf("%s", ast->value);
-            break;
-        case NODE_PRINT:
-            printf("print ");
-            pretty_print_ast(ast->left, level);
-            printf("\n");
-            break;
-        default:
-            print_ast(ast, level);
-    }
-
-
-    // printf("%s: %s\n", get_node_type_name(ast->type), ast->value);
-    // print_ast(ast->left, level + 1);
-    // print_ast(ast->right, level + 1);
-}
-
 int print_full_ast(FILE *file){
     setup_parser(file);
 
@@ -135,7 +65,7 @@ int print_full_ast(FILE *file){
     while (ast && ast->type != TOKEN_EOF) {
         // Process the AST or store it for later use
         // For now, just print the node type
-        pretty_print_ast(ast, 0);
+        ast_to_pretty_string(ast, 0, stderr);
 
         // Free the AST nodes as you go
         if (ast->left) free(ast->left);

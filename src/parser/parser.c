@@ -138,72 +138,47 @@ AstNode *parse_identifier_or_value(FILE *file) {
     return NULL;
 }
 
-AstNode *parse_add(FILE *file) {
-    if (token.type == TOKEN_ADD) {
+AstNode *parse_operator(FILE *file, TokenType type, NodeType node_type) {
+    if (token.type == type) {
         consume_next_token(file);
         
         AstNode *left = parse_identifier_or_value(file);
         
         if (!left) {
-            fprintf(stderr, "Error: Expected identifier after 'add'\n");
+            fprintf(stderr, "Error: Expected identifier after '%s'\n", get_token_type_name(type));
             return NULL;
         }
         consume_next_token(file); // Consume comma
 
         AstNode *right = parse_identifier_or_value(file);
         if (!right) {
-            fprintf(stderr, "Error: Expected identifier after comma in 'add'\n");
+            fprintf(stderr, "Error: Expected identifier after comma in '%s'\n", get_token_type_name(type));
             return NULL;
         }
         
         Primitive p = parse_primitive_type(left, right);
 
         if (p == PRIMITIVE_UNKNOWN){
-            fprintf(stderr, "Error: Incompatible types in 'add': %s, %s\n", get_node_type_name(left->type), get_node_type_name(right->type));
+            fprintf(stderr, "Error: Incompatible types in '%s': %s, %s\n", get_token_type_name(type), get_node_type_name(left->type), get_node_type_name(right->type));
             return NULL;
         }
 
-        return create_ast_node(NODE_ADD, left, right, NULL, p);
+        return create_ast_node(node_type, left, right, NULL, p);
     }
-    return NULL;
-}
-
-AstNode *parse_mul(FILE *file) {
-    if (token.type == TOKEN_MUL) {
-        consume_next_token(file);
-        AstNode *left = parse_identifier_or_value(file);
-        if (!left) {
-            fprintf(stderr, "Error: Expected identifier after 'mul'\n");
-            return NULL;
-        }
-        consume_next_token(file); // Consume comma
-        AstNode *right = parse_identifier_or_value(file);
-        if (!right) {
-            fprintf(stderr, "Error: Expected identifier after comma in 'mul'\n");
-            return NULL;
-        }
-
-        Primitive p = parse_primitive_type(left, right);
-
-        if (p == PRIMITIVE_UNKNOWN){
-            fprintf(stderr, "Error: Incompatible types in 'mul': %s, %s\n", get_node_type_name(left->type), get_node_type_name(right->type));
-            return NULL;
-        }
-
-        return create_ast_node(NODE_MUL, left, right, NULL, p);
-    }
+    
     return NULL;
 }
 
 AstNode *parse_operation(FILE *file) {
-    AstNode *node = parse_add(file);
-    if (node) {
-        return node;
-    }
-    node = parse_mul(file);
-    if (node) {
-        return node;
-    }
+    AstNode *node = parse_operator(file, TOKEN_ADD, NODE_ADD);
+    if (node) return node;
+    node = parse_operator(file, TOKEN_SUB, NODE_SUB);
+    if (node) return node;
+    node = parse_operator(file, TOKEN_MUL, NODE_MUL);
+    if (node) return node;
+    node = parse_operator(file, TOKEN_DIV, NODE_DIV);
+    if (node) return node;
+
     return NULL;
 }
 
@@ -246,7 +221,7 @@ AstNode *parse_store(FILE *file) {
     return NULL;
 }
 
-AstNode *parse_print_int(FILE *file) {
+AstNode *parse_print(FILE *file) {
     if (token.type == TOKEN_PRINT) {
         consume_next_token(file);
         AstNode *identifier = parse_identifier(file);
@@ -277,13 +252,10 @@ AstNode *parse_instruction(FILE *file) {
     instruction = parse_store(file);
     if (instruction) return instruction;
 
-    instruction = parse_add(file);
+    instruction = parse_operation(file);
     if (instruction) return instruction;
 
-    instruction = parse_mul(file);
-    if (instruction) return instruction;
-
-    instruction = parse_print_int(file);
+    instruction = parse_print(file);
     if (instruction) return instruction;
 
     instruction = parse_halt(file);
