@@ -15,11 +15,13 @@ main:
     STP X29, LR, [SP, #-16]!    ; Save LR, FR
     
 
-    MOV X0, #5
+    MOV X0, #0
     STR X0, [SP, #0]
     
+    SUB SP, SP, #16
+loop:
     
-    LDR X1, [SP, #0]
+    LDR X1, [SP, #16]
     STR X1, [SP, #0]
 
 
@@ -27,6 +29,20 @@ main:
     ADD X0, X0, printFormat1Long@PAGEOFF
 
     BL _printf
+
+    LDR X0, [SP, #16]
+    ADD X0, X0, #1
+    STR X0, [SP, #16]
+
+    
+    LDR X0, [SP, #16]
+    
+    MOV X1, #100
+    CMP X0, X1
+    BNE loop
+
+loopEnd:
+    ADD SP, SP, #16
 
     LDP	X29, LR, [SP], #16      ; Restore FR, LR
     RET

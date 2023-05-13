@@ -1,6 +1,7 @@
 import { isDefinitionKeyword } from "../language/keywords/definition";
 import { isModifierKeyword } from "../language/keywords/modifier";
 import { isPrimitiveType } from "../language/keywords/primitive-type";
+import { isAssignmentOperator } from "../language/operator/assignment-operator";
 import {
     TOKENS_TYPE,
     TokenDefinition,
@@ -97,6 +98,13 @@ interface TemplateStringNodeRaw {
     parts: ASTNodeRaw[];
 }
 
+interface VariableAssignmentNodeRaw {
+    node: "variable_assignment";
+    operator: string;
+    name: string;
+    value: ASTNodeRaw;
+}
+
 type ASTNodeRaw =
     | TypeNodeRaw
     | FunctionArgumentDefinitionNodeRaw
@@ -112,7 +120,8 @@ type ASTNodeRaw =
     | ComparisonNodeRaw
     | ArithmeticOperatorNodeRaw
     | TemplateStringNodeRaw
-    | RootNodeRaw;
+    | RootNodeRaw
+    | VariableAssignmentNodeRaw;
 
 
 function isScopedASTNodeRaw(node: ASTNodeRaw): node is (RootNodeRaw | FunctionDefinitionNodeRaw | MainFunctionNodeRaw | WhileLoopNodeRaw) {
@@ -151,6 +160,10 @@ export class ASTNode {
     get variableDefinitionName() { return this.name! }
     get variableDefinitionType() { return this.type! }
     get variableDefinitionValue() { return this.valueNode! }
+
+    get isVariableAssignment() { return this.nodeType === "variable_assignment" }
+    get variableAssignmentName() { return this.name! }
+    get variableAssignmentValue() { return this.valueNode! }
 
     get isFunctionDefinition() { return this.nodeType === "function_definition" }
     get functionDefinitionName() { return this.isMainFunction ? "main" : this.name!  }
@@ -275,6 +288,13 @@ export class ASTParser {
     skipNextToken() {
         this.skipWhitespace();
         this.index++;
+    }
+
+    reverse() {
+        this.index--;
+        while (this.tokens[this.index].type === "whitespace") {
+            this.index--;
+        }
     }
 
     peakNextToken(): TokenDefinition | undefined {
@@ -431,8 +451,8 @@ export class ASTParser {
                         nodes.push(func);
                     }
                 } else if(token.type === "modifier_keyword"){
-                    this.index--;
-                    const variable = this.resolveVariableDefinition();
+                    this.reverse();
+                    const variable = this.resolveVariableDeclaration();
                     nodes.push(variable);
                 }
             }
@@ -613,7 +633,7 @@ export class ASTParser {
         return node;
     }
 
-    resolveVariableDefinition(): ASTNodeRaw {
+    resolveVariableDeclaration(): ASTNodeRaw {
         this.expectTokens(["modifier_keyword"]);
         let token = this.getNextToken();
         const modifier = token.value;
@@ -652,18 +672,44 @@ export class ASTParser {
             constant: modifier === "const",
         };
     }
+    
+    resolveAssignment(): ASTNodeRaw {
+        this.expectTokens(["identifier"]);
+        const identifier = this.getNextToken();
+
+        if(!isAssignmentOperator(this.peakNextTokenStrict().value)){
+            throw new Error(`Unexpected token ${this.peakNextTokenStrict().value}`);
+        }
+
+        const operator = this.getNextToken();
+        const value = this.resolveValue();
+        this.expectTokensValue([";"]);
+        this.skipNextToken();
+
+        return {
+            operator: operator.value,
+            node: "variable_assignment",
+            name: identifier.value,
+            value,
+        };
+    }
 
     resolveExpression(): ASTNodeRaw {
         let token = this.getNextToken();
 
         if (token.type === "identifier") {
-            const call = this.resolveFunctionCall(token.value);
-            this.expectTokensValue([";"]);
-            this.skipNextToken();
-            return call;
+            if(this.hasNextToken() && this.peakNextTokenStrict().value === "("){
+                const call = this.resolveFunctionCall(token.value);
+                this.expectTokensValue([";"]);
+                this.skipNextToken();
+                return call;
+            }else if(isAssignmentOperator(this.peakNextTokenStrict().value)){
+                this.reverse();
+                return this.resolveAssignment();
+            }
         } else if (isModifierKeyword(token.value)) {
-            this.index -= 1;
-            return this.resolveVariableDefinition();
+            this.reverse();
+            return this.resolveVariableDeclaration();
         } else if (token.type === "control_flow_keyword") {
             if (token.value === "return") {
                 if(!this.hasNextToken()){

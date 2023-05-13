@@ -1,4 +1,7 @@
 main(){
-    var counter: int = 5;
-    print(counter);
+    var counter: int = 0;
+    while(counter != 100){
+        print(counter);
+        counter += 1;
+    }
 }

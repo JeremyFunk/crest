@@ -26,6 +26,54 @@ export function generateExecutionStart(stack: StackFrame){
 `
 }
 
+export function generateAssignment(node: ASTNode, stackFrame: StackFrame){
+    if(!node.isVariableAssignment) throw new Error(`The node ${node.toString()} is not an assignment.`)
+    if(node.operatorValue === '='){
+        return generateVariableDeclaration(node, stackFrame);
+    }
+
+    let operator = '';
+
+    switch(node.operatorValue){
+        case '+=':
+            operator = 'ADD';
+            break;
+        case '-=':
+            operator = 'SUB';
+            break;
+        case '*=':
+            operator = 'MUL';
+            break;
+        case '/=':
+            operator = 'DIV';
+            break;
+        case '%=':
+            operator = 'MOD';
+            break;
+        default:
+            throw new Error(`The operator ${node.toString()} is not supported.`)
+    }
+
+    const value = node.variableAssignmentValue
+    const target = stackFrame.getVariableStrict(node.variableAssignmentName);
+    let right = ''
+    
+    if(value.isValueLiteral){
+        right = `#${value.valueLiteralValue}`
+    }else if(value.isIdentifierVariable){
+        const variable = stackFrame.getVariableStrict(value.identifierVariableName);
+        right = `[SP, #${variable.offset}]`
+    }
+
+    const targetString = `[SP, #${target.offset}]`
+
+    return `
+    LDR X0, ${targetString}
+    ${operator} X0, X0, ${right}
+    STR X0, ${targetString}
+`
+}
+
 // export function generateGlobalVariableDeclaration(name: string, type: string, value: ASTNode){
 //     if(value.isValueLiteral){
 //         return `
@@ -47,8 +95,7 @@ ${DataRegistry.join('\n')}
 }
 
 
-export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFrame){
-    if(!node.isVariableDefinition) throw new Error(`The node ${node.toString()} is not a variable declaration.`)
+function generateDirectAssinment(node: ASTNode, stackFrame: StackFrame){
     const value = node.variableDefinitionValue;
     const variable = stackFrame.getVariableStrict(node.variableDefinitionName);
 
@@ -67,13 +114,20 @@ export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFram
 
     throw new Error(`The variable ${value.toString()} is not supported.`)
 }
-export function generateWhileLoopStart(){
+
+export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFrame){
+    if(!node.isVariableDefinition) throw new Error(`The node ${node.toString()} is not a variable declaration.`)
+    return generateDirectAssinment(node, stackFrame);
+}
+export function generateWhileLoopStart(stackFrame: StackFrame){
     return `
+    SUB SP, SP, #${stackFrame.stackFrameSize}
 loop:`
 }
-export function generateWhileLoopEnd(){
+export function generateWhileLoopEnd(stackFrame: StackFrame){
     return `
 loopEnd:
+    ADD SP, SP, #${stackFrame.stackFrameSize}
 `
 }
 

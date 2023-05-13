@@ -1,5 +1,5 @@
 import { ASTNode } from "../../../parser/parser"
-import { generateCondition, generateExecutionStart, generateFunctionCall, generateFunctionDefinitionEnd, generateFunctionDefinitionStart, generateProgramEnd, generateProgramStart, generateVariableDeclaration, generateWhileLoopEnd, generateWhileLoopStart } from "./code-generator"
+import { generateAssignment, generateCondition, generateExecutionStart, generateFunctionCall, generateFunctionDefinitionEnd, generateFunctionDefinitionStart, generateProgramEnd, generateProgramStart, generateVariableDeclaration, generateWhileLoopEnd, generateWhileLoopStart } from "./code-generator"
 import { generateIntegratedFunction, getVariableSize, isIntegratedFunction } from "./macos-registry"
 
 export interface Variable {
@@ -287,7 +287,7 @@ export class M2Compiler {
 
         for(const child of this.stack.node.children){
             if(child.isFunctionDefinition || child.isMainFunction){
-                compiled += this.compileScope(this.stack.getChildrenScope(child));
+                compiled += this.compileScope(this.stack.getChildrenScope(child), child);
             }
         }
 
@@ -311,19 +311,21 @@ export class M2Compiler {
     compileNode(node: ASTNode, stack: StackFrame): string {
         let compiled = '';
 
-        if(node.isScoped){
-            return this.compileScope(stack);
-        }
 
         if(node.isVariableDefinition){
-            compiled += generateVariableDeclaration(node, stack);
-        }else if(node.isWhileLoop){
-            const whileLoopScope = this.compileScope(stack.getChildrenScope(node));
+            return generateVariableDeclaration(node, stack);
+        }else if (node.isVariableAssignment){
+            return generateAssignment(node, stack);
+        } if(node.isWhileLoop){
+            const whileLoopScope = stack.getChildrenScope(node);
+
+            compiled += generateWhileLoopStart(whileLoopScope);
             
-            compiled += generateWhileLoopStart();
-            compiled += generateCondition(node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue, 'loopEnd', stack)
-            compiled += whileLoopScope;
-            compiled += generateWhileLoopEnd();
+            for(const child of whileLoopScope.node.children){
+                compiled += this.compileNode(child, whileLoopScope);
+            }
+            compiled += generateCondition(node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue, 'loop', whileLoopScope);
+            compiled += generateWhileLoopEnd(whileLoopScope);
         }else if(node.isFunctionCall){
             const func = stack.getFunction(node.functionCallName);
 
@@ -343,16 +345,17 @@ export class M2Compiler {
             }else{
                 throw new Error(`The function ${node.functionDefinitionName} is not defined.`)
             }
+        }else if(node.isScoped){
+            return this.compileScope(stack, node);
         }else{
-            throw new Error('The node is not scoped.')
+            throw new Error(`The node ${node.toString()} is not implemented.`)
         }
 
         return compiled;   
     }
 
-    compileScope(stack: StackFrame): string {
+    compileScope(stack: StackFrame, node: ASTNode): string {
         let compiled = '';
-        const node = stack.node;
 
         if(!node.isScoped) throw new Error('The node is not scoped.')
 
