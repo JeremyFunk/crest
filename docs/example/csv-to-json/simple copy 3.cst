@@ -1,0 +1,12 @@
+transformer processLine(titles: string[], var entries: string[]) => `
+    {
+        ${titles.map((title, index)=>title+`"${entries[index]}",\n`)}
+    },`
+
+transformer processFile(path: fs.path, var linesStream: fs.fileStream) {
+    titleString = linesStream.readLineSplit(',').map(t=>`    "{t}": `)
+    lines = processLine(titleString, &linesStream.readLineSplit(','))
+    writeFile(`[${lines.join("")}]`)
+}
+
+startup transformer(directory: fs.path) => processFile(&fs.readDirectory(directory))

@@ -1,0 +1,12 @@
+main(){
+    var counter: int = 0;
+    while(counter != 100){
+        print(counter * 2);
+    }
+
+    printComplete(100);
+}
+
+function printComplete(count: int){
+    print(`This was "completed" with a while loop with ${count} iterations.`);
+}

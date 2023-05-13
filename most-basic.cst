@@ -1,0 +1,4 @@
+main(){
+    var counter: int = 5;
+    print(counter);
+}

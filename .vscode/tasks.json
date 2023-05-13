@@ -2,46 +2,31 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "command": "compile.bat & cd bin & compiler.exe compile-run",
+            "command": "fish build.fish && ./executable ",
+            "label": "Run ASM",
             "type": "shell",
-            "label": "Run",
             "problemMatcher": []
         },
         {
-            "command": "compile.bat & cd bin & compiler.exe compile",
-            "type": "shell",
-            "label": "Compile",
-            "problemMatcher": []
-        },
-        {
-            "command": "nasm -f win64 assembled.asm -o bin/temp_output.obj",
-            "type": "shell",
-            "label": "Assemble",
-            "problemMatcher": []
-        },
-        {
-            "command": "nasm -f win64 assembled.asm -o bin/temp_output.obj & gcc bin/temp_output.obj -o bin/compiler.exe & cd bin & compiler.exe compile",
-            "type": "shell",
-            "label": "Assemble and Run",
-            "problemMatcher": []
-        },
-        {
-            "command": "compile.bat & cd bin & compiler.exe print-ast",
-            "type": "shell",
-            "label": "Run AST",
-            "problemMatcher": []
-        },
-        {
-            "command": "compile.bat & cd bin & compiler.exe tokens",
-            "type": "shell",
-            "label": "Tokens",
-            "problemMatcher": []
-        },
-        {
-            "command": "compile.bat",
-            "type": "shell",
-            "label": "Build",
-            "problemMatcher": []
+            "label": "BG: Build code",
+            "group": "build",
+            "command": "yarn",
+            "args": ["tsc", "--watch"],
+            "problemMatcher": {
+              "base": "$tsc-watch",
+              "fileLocation": ["relative", "${workspaceRoot}/src"]
+            },
+            "options": {
+              "cwd": "${workspaceFolder}/src"
+            },
+            "isBackground": true,
+            "runOptions": {
+              "runOn": "folderOpen"
+            },
+            "presentation": {
+              "panel": "dedicated",
+              "reveal": "never"
+            }
         }
     ]
 }

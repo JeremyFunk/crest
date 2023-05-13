@@ -1,0 +1,36 @@
+
+
+startup transformer(directory: fs.path) {
+    processFile(readDirectory(directory))
+}
+
+// Transformer type alias
+alias ProcessFile (*string[], fs.path): string
+
+transformer readDirectory(directory: fs.path) {
+    files = getFilesInDirectory(directory)
+    // foreach means free yield, no side-effects
+    foreach(file in files){
+        yield (*readLines(file), file)
+    }
+}
+
+ProcessFile processFile(linesStream, path){
+    title = linesStream.readLine().split(',')
+    titleString = title.map(t=>`    "{t}": `)
+
+    lines = processLine(titleString, &linesStream.readSection(',','\n'))
+    const file = `[
+    ${lines.join("")}
+]`
+
+    writeFile(file)
+}
+
+transformer processLine(titles: string[], entries: string[]){
+
+    return `
+    {
+        ${titles.map((title, index)=>title+`"${entries[index]}",\n`)}
+    },`
+}

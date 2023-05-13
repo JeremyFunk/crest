@@ -1,0 +1,31 @@
+
+
+startup transformer {
+    file = fs.open('example.csv')
+
+    result = convert(stream.readLine().split(','), *stream.readLine())
+
+    fs.write('example.json', `[
+    {
+        result.join(',')
+    }
+]`)
+}
+
+transformer convert(
+    // Here all pre-requisites for the transformer are defined.
+    titles: string[] => titles.map(title, `"{title}": `)
+
+    // This is a variable, meaning that this value will change between calls.
+    var row: string[]
+){
+    for(i in range(0,titles.length)){
+        titles[i] += `"{row[i]}",`
+    }
+    // Remove the last comma
+    titles[-1] = titles[-1][:-1]
+    return `    \{
+        {titles.join('\n')}
+    \}`
+    return titles
+}
