@@ -63,7 +63,7 @@ export class AArch64InstructionWrapper {
     }
 
 
-    static storeStackInRegister(offset: number, register: Register){
+    static loadStackToRegister(offset: number, register: Register){
         return `LDR ${register}, [SP, #${offset}] ; Load variable ${register} from stack`
     }
 
@@ -74,7 +74,8 @@ export class AArch64InstructionWrapper {
             STR ${freeTempRegister}, [SP, #${destinationOffset}] ; Store variable on stack`
     }
 
-    static storeRegisterInRegister(source: Register, destination: Register){
+    static loadRegisterInRegister(source: Register, destination: Register){
+        if(source === destination) return `; Skip redundant load from register ${source} to register ${destination}`
         return `MOV ${destination}, ${source} ; Store register ${source} in register ${destination}`
     }
     
@@ -89,7 +90,7 @@ export class AArch64InstructionWrapper {
             STR ${freeTempRegister}, [SP, #${offset}] ; Store literal ${literal} on stack`
     }
 
-    static storeLiteralInRegister(literal: number | string, register: Register){
+    static loadLiteralInRegister(literal: number | string, register: Register){
         return `MOV ${register}, #${literal} ; Store literal ${literal} in register ${register}`
     }
 }

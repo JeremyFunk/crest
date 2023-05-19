@@ -1,5 +1,6 @@
 import { AArch64InstructionWrapper } from "./aarch64-low-level"
 import { StackFrameState, VariableState } from "../compiler/m2-compiler"
+import { Register } from "./aarch64-registry"
 
 export class AArch64Wrapper {
     static generateProgram(stack: StackFrameState){
@@ -55,13 +56,13 @@ export class AArch64Wrapper {
 
         const registers = args.map((arg, index) => {
             if(typeof arg === 'number' || typeof arg === 'string'){
-                return AArch64InstructionWrapper.storeLiteralInRegister(arg, freeRegisters[index])
+                return AArch64InstructionWrapper.loadLiteralInRegister(arg, freeRegisters[index])
             }
 
             if(arg.register)
-                return AArch64InstructionWrapper.storeRegisterInRegister(arg.register, freeRegisters[index])
+                return AArch64InstructionWrapper.loadRegisterInRegister(arg.register, freeRegisters[index])
             if(arg.stackOffset)
-                return AArch64InstructionWrapper.storeStackInRegister(arg.stackOffset, freeRegisters[index])
+                return AArch64InstructionWrapper.loadStackToRegister(arg.stackOffset, freeRegisters[index])
             throw new Error(`Invalid argument ${arg}`)
         })
 

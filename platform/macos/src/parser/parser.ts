@@ -72,10 +72,19 @@ interface ReturnStatementNodeRaw {
     value: ASTNodeRaw | null;
 }
 
-interface WhileLoopNodeRaw {
-    node: "while_loop";
-    condition: ASTNodeRaw;
+interface LoopRaw {
+    node: 'control_flow';
+    type: "while_loop_statement" | "for_loop_statement"
+    condition?: ASTNodeRaw;
     body: ASTNodeRaw[];
+}
+
+interface IfStatementRaw {
+    node: 'control_flow';
+    type: "if_statement"
+    condition?: ASTNodeRaw;
+    body: ASTNodeRaw[];
+    else?: IfStatementRaw;
 }
 
 interface ComparisonNodeRaw {
@@ -116,7 +125,8 @@ type ASTNodeRaw =
     | VariableDefinitionNodeRaw
     | ValueLiteralNodeRaw
     | ReturnStatementNodeRaw
-    | WhileLoopNodeRaw
+    | LoopRaw
+    | IfStatementRaw
     | ComparisonNodeRaw
     | ArithmeticOperatorNodeRaw
     | TemplateStringNodeRaw
@@ -124,12 +134,12 @@ type ASTNodeRaw =
     | VariableAssignmentNodeRaw;
 
 
-function isScopedASTNodeRaw(node: ASTNodeRaw): node is (RootNodeRaw | FunctionDefinitionNodeRaw | MainFunctionNodeRaw | WhileLoopNodeRaw) {
-    return node.node === "root" || node.node === "function_definition" || node.node === "main_function" || node.node === "while_loop";
+function isScopedASTNodeRaw(node: ASTNodeRaw): node is (RootNodeRaw | FunctionDefinitionNodeRaw | MainFunctionNodeRaw | LoopRaw | IfStatementRaw) {
+    return node.node === "root" || node.node === "function_definition" || node.node === "main_function" || node.node === "control_flow";
 }
 
 export class ASTNode {
-    private nodeType: string | null = null;
+    private nodeType: ASTNodeRaw['node'] | null = null;
     private index: number;
     private range: number;
 
@@ -147,6 +157,7 @@ export class ASTNode {
     private arguments: ASTNode[] = [];
 
     private _children: ASTNode[] = [];
+    private _else: ASTNode | null = null;
     private _isScoped: boolean = false;
 
     get children() { return this._children }
@@ -181,7 +192,22 @@ export class ASTNode {
     get isIdentifierVariable() { return this.nodeType === "identifier_variable" }
     get identifierVariableName() { return this.name! }
 
-    get isWhileLoop() { return this.nodeType === "while_loop" }
+    // Control flow
+    get isControlFlow() { return this.nodeType === "control_flow" }
+    get isWhileLoop() { return this.type === "while_loop_statement" }
+    get isForLoop() { return this.type === "for_loop_statement" }
+    get isIfChain() { return this.isIfStatement && this._else !== null }
+    get elseNode() { return this._else! }
+    getLastElseNode(): ASTNode {
+        if(this._else){
+            return this._else.getLastElseNode();
+        }
+        return this;
+    }
+    get isIfStatement() { return this.type === "if_statement" && this.condition !== null }
+    get isElseStatement() { return this.type === "if_statement" && this.condition === null }
+
+    // Conditions
     get leftNode() { return this.left! }
     get rightNode() { return this.right! }
     get operatorValue() { return this.operator! }
@@ -203,8 +229,8 @@ export class ASTNode {
             });
         }
 
-        if(raw.node === "while_loop"){
-            this.condition = new ASTNode((raw as WhileLoopNodeRaw).condition, index + 1);
+        if((raw as any).condition){
+            this.condition = new ASTNode((raw as any).condition, index + 1);
             index += this.condition.range;
         }
 
@@ -249,6 +275,11 @@ export class ASTNode {
         if((raw as any).right){
             this.right = new ASTNode((raw as any).right, index + 1);
             index += this.right.range;
+        }
+
+        if((raw as any).else){
+            this._else = new ASTNode((raw as any).else, index + 1);
+            index += this._else.range;
         }
 
         this.range = (index - this.index) + 1;
@@ -622,7 +653,10 @@ export class ASTParser {
 
             if (this.peakNextTokenStrict().type === "comma") {
                 this.skipNextToken();
-                this.expectTokens(["identifier"]);
+                const peak = this.peakNextTokenStrict();
+                if(peak.type !== "identifier" && isPrimitiveType(peak.type)){
+                    throw new Error(`Unexpected token type ${peak.type}`);
+                }
             }else {
                 this.expectTokensValue([")"]);
             }
@@ -743,10 +777,50 @@ export class ASTParser {
                 this.expectTokensValue([")"]);
                 this.skipNextToken();
                 const body = this.resolveScopeBraces();
+                this.expectTokensValue(["}"]);
+                this.skipNextToken();
 
                 return {
-                    node: "while_loop",
+                    node: 'control_flow',
+                    type: "while_loop_statement",
                     condition,
+                    body,
+                };
+            }else if(token.value === "if" || token.value === "else if"){
+                this.expectTokensValue(["("]);
+                this.skipNextToken();
+                const condition = this.resolveValue();
+                this.expectTokensValue([")"]);
+                this.skipNextToken();
+                const body = this.resolveScopeBraces();
+                this.expectTokensValue(["}"]);
+                this.skipNextToken();
+
+                const ifStatement: IfStatementRaw = {
+                    node: 'control_flow',
+                    type: "if_statement",
+                    condition,
+                    body,
+                };
+
+
+                if(this.hasNextToken() && this.peakNextTokenStrict().value.startsWith("else")){
+                    const elseStatement = this.resolveExpression();
+                    if(!(elseStatement.node === "control_flow" && elseStatement.type === "if_statement"))
+                        throw new Error(`Unexpected token type ${elseStatement.node} ${elseStatement.node}`);
+
+                    ifStatement.else = elseStatement;
+                }
+
+                return ifStatement;
+            }else if(token.value === "else"){
+                const body = this.resolveScopeBraces();
+                this.expectTokensValue(["}"]);
+                this.skipNextToken();
+
+                return {
+                    node: 'control_flow',
+                    type: "if_statement",
                     body,
                 };
             }

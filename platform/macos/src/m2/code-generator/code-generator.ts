@@ -3,7 +3,7 @@ import { AArch64Wrapper } from "./aarch64-wrapper";
 import { AArch64InstructionWrapper } from "./aarch64-low-level";
 import { StackFrameState } from "../compiler/m2-compiler"
 import { DataRegistry } from "./builtins"
-import { AArch64Utilities } from "./aarch64-registry";
+import { AArch64Utilities, Register } from "./aarch64-registry";
 import { FunctionArgumentDefinition } from "../compiler/preparation";
 
 export function generateProgram(stack: StackFrameState){ 
@@ -20,6 +20,8 @@ ${[...stack.globals].join('\n')}
 `
 }
 
+
+
 export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFrameState){
     if(!node.isVariableDefinition) throw new Error(`The node ${node.toString()} is not a variable declaration.`)
     const variable = stackFrame.getVariableDefinitionStrict(node.variableDefinitionName);
@@ -27,15 +29,35 @@ export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFram
 
     return '\n' + generateDirectAssignment(node, stackFrame);
 }
+function loadVariableToRegister(name: string, register: Register, stackFrame: StackFrameState){
+    const variable = stackFrame.getVariableStrict(name);
+    
+    if(variable.register){
+        return AArch64InstructionWrapper.loadRegisterInRegister(variable.register, register);
+    }else if(variable.stackOffset !== undefined){
+        return AArch64InstructionWrapper.loadStackToRegister(variable.stackOffset, register);
+    }else{
+        throw new Error(`The variable ${variable.name} has no register or stack offset.`);
+    }
+}
+function loadNodeToRegister(node: ASTNode, register: Register, stackFrame: StackFrameState){
+    if(node.isValueLiteral){
+        return AArch64InstructionWrapper.loadLiteralInRegister(node.valueLiteralValue, register);
+    }else if(node.isIdentifierVariable){
+        return loadVariableToRegister(node.identifierVariableName, register, stackFrame);
+    }else{
+        throw new Error(`The node ${node.toString()} is not supported.`);
+    }
+}
 
 export function generateDirectAssignment(node: ASTNode, stackFrame: StackFrameState){
     const value = node.variableDefinitionValue;
     const variable = stackFrame.getVariableStrict(node.variableDefinitionName);
-    stackFrame.allocateVariable(variable);
+    stackFrame.loadVariable(variable);
 
     if(value.isValueLiteral){
         if(variable.register){
-            return AArch64InstructionWrapper.storeLiteralInRegister(value.valueLiteralValue, variable.register);
+            return AArch64InstructionWrapper.loadLiteralInRegister(value.valueLiteralValue, variable.register);
         }else if(variable.stackOffset !== undefined){
             return AArch64InstructionWrapper.storeLiteralOnStack(value.valueLiteralValue, variable.stackOffset, stackFrame.getFreeTemporaryRegister());
         }else{
@@ -45,12 +67,12 @@ export function generateDirectAssignment(node: ASTNode, stackFrame: StackFrameSt
         const identifier = stackFrame.getVariableStrict(node.variableDefinitionValue.identifierVariableName);
         if(identifier.register){
             if(variable.register)
-                return AArch64InstructionWrapper.storeRegisterInRegister(identifier.register, variable.register);
+                return AArch64InstructionWrapper.loadRegisterInRegister(identifier.register, variable.register);
             if(variable.stackOffset !== undefined)
                 return AArch64InstructionWrapper.storeRegisterOnStack(identifier.register, variable.stackOffset);
         }else if(identifier.stackOffset !== undefined){
             if(variable.register)
-                return AArch64InstructionWrapper.storeStackInRegister(identifier.stackOffset, variable.register);
+                return AArch64InstructionWrapper.loadStackToRegister(identifier.stackOffset, variable.register);
             if(variable.stackOffset !== undefined)
                 return AArch64InstructionWrapper.storeStackOnStack(identifier.stackOffset, variable.stackOffset, stackFrame.getFreeTemporaryRegister());
         }
@@ -80,24 +102,56 @@ export function generateAssignment(node: ASTNode, stackFrame: StackFrameState){
         return `${operator} ${target.register}, ${target.register}, ${source} ; Perform the assignment operation`
     if(target.stackOffset !== undefined){
         stackFrame.setVariableToFreeRegister(target);
-        AArch64InstructionWrapper.storeStackInRegister(target.stackOffset, stackFrame.getFreeTemporaryRegister());
+        AArch64InstructionWrapper.loadStackToRegister(target.stackOffset, stackFrame.getFreeTemporaryRegister());
     }
 
     throw new Error(`The variable ${target.name} has no register or stack offset.`);
 }
 
 
-// export function generateWhileLoopStart(stackFrame: StackFrame){
-//     return `
-//     SUB SP, SP, #${stackFrame.stackFrameSize}
-// loop:`
-// }
-// export function generateWhileLoopEnd(stackFrame: StackFrame){
-//     return `
-// loopEnd:
-//     ADD SP, SP, #${stackFrame.stackFrameSize}
-// `
-// }
+export function generateWhileLoopStart(stackFrame: StackFrameState, label: string){
+    return `
+    ${AArch64InstructionWrapper.allocateStackMemory(stackFrame.stackFrameSize)}
+${label}:
+`
+}
+export function generateWhileLoopEnd(stackFrame: StackFrameState, label: string){
+    return `
+${label}_end:
+    ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
+`
+}
+
+export function generateIfStart(stackFrame: StackFrameState, id: number, left: ASTNode, right: ASTNode, operator: string){
+    return `
+; If statement
+    ${generateCondition(left, right, operator, `if${id}_end`, stackFrame, true)}    
+    ${AArch64InstructionWrapper.allocateStackMemory(stackFrame.stackFrameSize)}
+`
+}
+export function generateIfEnd(stackFrame: StackFrameState, id: number, chainEnd?: number){
+    return `
+; End of if statement
+    ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
+    ${chainEnd ? `B if${chainEnd}_end` : ''}
+if${id}_end:
+`
+}
+
+export function generateElseStart(stackFrame: StackFrameState){
+    return `
+; Else statement
+    ${AArch64InstructionWrapper.allocateStackMemory(stackFrame.stackFrameSize)}
+`
+}
+
+export function generateElseEnd(stackFrame: StackFrameState, id: number){
+    return `
+    ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
+if${id}_end:
+    `
+}
+
 
 export function generateFunctionCall(name: string, arguments_: ASTNode[], stackFrame: StackFrameState){
     const argStates = arguments_.map(arg => {
@@ -116,64 +170,17 @@ export function generateFunctionDefinition(name: string, arguments_: FunctionArg
     }
 }
 
-// export function generateFunctionDefinitionStart(name: string, arguments_: ASTNode[], stackFrame: StackFrame){
-//     const result = `
-//     ${name}:
-//         SUB SP, SP, #${stackFrame.stackFrameSize}                  ; Allocate stack frame
-//         STP X30, X29, [SP, #${stackFrame.stackFrameSize - 16}]!    ; Save return address, frame pointer
-// `
+export function generateCondition(left: ASTNode, right: ASTNode, operator: string, targetLabel: string, stackFrame: StackFrameState, inverted: boolean = false){
+    let condition = AArch64Utilities.getCondition(operator, inverted);
 
-//     // Registers x0-x19 are callee-saved, so we need to save them
+    const regs = stackFrame.getFreeTemporaryRegisters(2);
 
-//     return `
-//     ${arguments_.map((arg, i) => {
-//         const variable = stackFrame.getVariableStrict(arg.identifierVariableName);
-//         return `
-//     STR X${i}, [SP, #${variable.offset}]`
-//     }).join('\n')}
-// `
-// }
+    const leftV = loadNodeToRegister(left, regs[0], stackFrame);
+    const rightV = loadNodeToRegister(right, regs[1], stackFrame);
 
-// export function generateFunctionDefinitionEnd(stackFrame: StackFrame){
-//     return `
-//     LDP	X29, LR, [SP], #${stackFrame.stackFrameSize}      ; Restore FR, LR
-//     RET
-// `
-// }
-
-// export function generateCondition(left: ASTNode, right: ASTNode, operator: string, targetLabel: string, stackFrame: StackFrame){
-//     const leftV = loadVariable(left, 'X0', stackFrame);
-//     const rightV = loadVariable(right, 'X1', stackFrame);
-
-//     let condition = '';
-
-//     switch(operator){
-//         case '==':
-//             condition = 'BEQ';
-//             break;
-//         case '!=':
-//             condition = 'BNE';
-//             break;
-//         case '>':
-//             condition = 'BGT';
-//             break;
-//         case '<':
-//             condition = 'BLT';
-//             break;
-//         case '>=':
-//             condition = 'BGE';
-//             break;
-//         case '<=':
-//             condition = 'BLE';
-//             break;
-//         default:
-//             throw new Error(`The operator ${operator} is not supported.`)
-//     }
-
-//     return `
-//     ${leftV}
-//     ${rightV}
-//     CMP X0, X1
-//     ${condition} ${targetLabel}
-// `
-// }
+    return `
+    ${leftV}
+    ${rightV}
+    CMP ${regs[0]}, ${regs[1]}
+    ${condition} ${targetLabel}`
+}

@@ -47,9 +47,15 @@ export class M2StackBuilder {
                     type: child.variableDefinitionType,
                     value: child.variableDefinitionValue,
                 });
-            }else if(child.isWhileLoop){
-                const whileLoopScope = this.prepareScope(child, stack);
-                this.buildScope(whileLoopScope);
+            }else if(child.isWhileLoop || child.isControlFlow){
+                const controlFlowScope = this.prepareScope(child, stack);
+                let ifChainNode = child;
+                while(ifChainNode.elseNode){
+                    const elseScope = this.prepareScope(ifChainNode.elseNode, stack);
+                    this.buildScope(elseScope);
+                    ifChainNode = ifChainNode.elseNode;
+                }
+                this.buildScope(controlFlowScope);
             }else if(child.isFunctionCall){
                 const args = child.functionCallArguments
 

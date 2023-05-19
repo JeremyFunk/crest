@@ -1,3 +1,4 @@
+import { isWhiteSpaceLike } from "typescript";
 import { isControlFlowKeyword } from "../language/keywords/control-flow";
 import { isDefinitionKeyword } from "../language/keywords/definition";
 import { isKeyword } from "../language/keywords/keywords";
@@ -88,6 +89,11 @@ function _tokenize(lexels: string[]){
         }
 
         if(isControlFlowKeyword(lexel)){
+            if(i + 2 < lexels.length && lexel === 'else' && lexels[i + 1] === ' ' && lexels[i + 2] === 'if'){
+                token.value = 'else if';
+                i += 2;
+            }
+
             token.type = 'control_flow_keyword';
         }else if(isModifierKeyword(lexel)){
             token.type = 'modifier_keyword';

@@ -1,6 +1,7 @@
 export type CONTROL_FLOW_KEYWORDS =
     'if' |
     'else' |
+    'else if' |
     'for' |
     'while' |
     'break' |
@@ -10,6 +11,7 @@ export type CONTROL_FLOW_KEYWORDS =
 export const CONTROL_FLOW_KEYWORDS = {
     'if': 'if',
     'else': 'else',
+    'else if': 'else if',
     'for': 'for',
     'while': 'while',
     'break': 'break',

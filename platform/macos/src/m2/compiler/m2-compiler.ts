@@ -1,6 +1,6 @@
 import { ASTNode } from "../../parser/parser"
 import { ArgumentRegisters, CallerSavedRegisters, Register } from "../code-generator/aarch64-registry"
-import { generateAssignment, generateDataSection, generateFunctionCall, generateFunctionDefinition, generateProgram, generateVariableDeclaration } from "../code-generator/code-generator"
+import { generateAssignment, generateCondition, generateDataSection, generateElseEnd, generateElseStart, generateFunctionCall, generateFunctionDefinition, generateIfEnd, generateIfStart, generateProgram, generateVariableDeclaration, generateWhileLoopEnd, generateWhileLoopStart } from "../code-generator/code-generator"
 import { generateBuiltinFunction, isBuiltinFunction } from "../code-generator/builtins"
 import { DefinitionMarker, StackFrameDefinition, VariableDefinition, Function } from "./preparation"
 import { M2StackBuilder } from "./stack-builder"
@@ -28,6 +28,7 @@ export class StackFrameState {
     public stackPointer: number
     public stackFrameSize: number
     public globals: Set<string>
+    // Stack frames are not always breaking frames. For example, an if statement is not a new scope, but a function is.
     private callerSavedRegisters: Register[]
 
     public get globalState(): StackFrameState {
@@ -35,7 +36,7 @@ export class StackFrameState {
         return this.parent.globalState;
     }
 
-    constructor(stackFrame: StackFrameDefinition, parent?: StackFrameState){
+    constructor(stackFrame: StackFrameDefinition, parent: StackFrameState | undefined){
         this.stackFrame = stackFrame;
         this.parent = parent;
         this.variables = [];
@@ -82,11 +83,16 @@ export class StackFrameState {
         return state
     }
 
-    getRegisterForVariable(variable: VariableDefinition): Register | undefined {
-        const index = this.variables.findIndex(variableState => variableState.name === variable.name);
-        if(index === -1) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
+    private findVariable(name: string): VariableState | undefined {
+        const index = this.variables.findIndex(variableState => variableState.name === name);
+        if(index === -1 && this.parent) return this.parent.findVariable(name);
+        if(index === -1) return undefined;
+        return this.variables[index];
+    }
 
-        const variableState = this.variables[index];
+    getRegisterForVariable(variable: VariableDefinition): Register | undefined {
+        const variableState = this.findVariable(variable.name);
+        if(!variableState) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
         if(!variableState.deleted) return variableState.register;
         return undefined;
     }
@@ -96,10 +102,9 @@ export class StackFrameState {
 
         if(!this.isRegisterFree(register)) throw new Error(`The register ${register} is not free.`)
         
-        const index = this.variables.findIndex(variableState => variableState.name === variable.name);
-        if(index === -1) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
-        
-        this.variables[index].register = register;
+        const variableState = this.findVariable(variable.name);
+        if(!variableState) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
+        if(!variableState.deleted) variableState.register = register;
     }
 
     setVariableToFreeRegister(variable: VariableState) {
@@ -109,13 +114,36 @@ export class StackFrameState {
         this.setVariableToRegister(variable, register);
     }
 
+
+
     getFreeRegister(): Register | undefined {
         for(const register of this.callerSavedRegisters){
-            if(!this.variables.some(variableState => variableState.register === register && !variableState.deleted)){
+            if(this.isRegisterFree(register)){
                 return register;
             }
         }
         return undefined;
+    }
+
+    getFreeRegisterStrict(): Register {
+        const register = this.getFreeRegister();
+        if(!register) throw new Error(`There are no free registers.`);
+        return register;
+    }
+    getFreeRegisters(count: number = 1): Register[] {
+        const registers: Register[] = []
+        for(const register of this.callerSavedRegisters){
+            if(this.isRegisterFree(register)){
+                registers.push(register);
+                if(registers.length === count) return registers;
+            }
+        }
+        return registers;
+    }
+    getFreeRegistersStrict(count: number = 1): Register[] {
+        const registers = this.getFreeRegisters(count);
+        if(!registers || registers.length !== count) throw new Error(`There are not enough free registers.`);
+        return registers;
     }
 
     getFreeArgumentRegisters(): Register[] {
@@ -133,40 +161,47 @@ export class StackFrameState {
         if(!register) throw new Error(`There are no free registers.`);
         return register;
     }
+    getFreeTemporaryRegisters(count: number): Register[] {
+        const register = this.getFreeRegisters(count);
+        if(!register || register.length !== count) throw new Error(`There are no free registers.`);
+        return register;
+    }
 
     deleteVariable(variable: VariableDefinition): void {
-        const index = this.variables.findIndex(variableState => variableState.name === variable.name);
-        if(index === -1) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
+        const variableState = this.findVariable(variable.name);
+        if(!variableState) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
 
-        this.variables[index].deleted = true;
-        this.variables[index].register = undefined;
+        variableState.deleted = true;
+        variableState.register = undefined;
     }
 
     isVariableDeleted(variable: VariableDefinition): boolean {
-        const index = this.variables.findIndex(variableState => variableState.name === variable.name);
-        if(index === -1) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
+        const variableState = this.findVariable(variable.name);
+        if(!variableState) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
 
-        return this.variables[index].deleted;
+        return variableState.deleted;
     }
 
     isRegisterFree(register: Register): boolean {
-        return !this.variables.some(variableState => variableState.register === register && !variableState.deleted);
+        const selfAssign = this.variables.some(variableState => variableState.register === register && !variableState.deleted);
+
+        if(!selfAssign && this.parent) return this.parent.isRegisterFree(register);
+        return !selfAssign;
     }
 
-    allocateVariableStrict(variable: VariableState) {
-        if(variable.register || variable.stackOffset !== undefined) throw new Error(`The variable ${variable.name} is already allocated.`);
-
-        const freeRegister = this.getFreeRegister();
-        if(freeRegister){
-            this.setVariableToRegister(variable, freeRegister);
-        }else{
-            variable.stackOffset = this.stackPointer;
-            this.stackPointer += variable.size;
-        }
-    }
-    allocateVariable(variable: VariableState) {
+    /**
+     * Loads the variable into a register or onto the stack.
+     * 
+     * If a register is specified, the variable will be loaded into that register or an error will be thrown if the register is not free.
+     */
+    loadVariable(variable: VariableState, register?: Register) {
         if(variable.register || variable.stackOffset !== undefined) return
 
+        if(register){
+            this.setVariableToRegister(variable, register);
+            return;
+        }
+        
         const freeRegister = this.getFreeRegister();
         if(freeRegister){
             this.setVariableToRegister(variable, freeRegister);
@@ -182,7 +217,7 @@ export class StackFrameState {
     }
 
     getVariable(name: string): VariableState | undefined {
-        let variable = this.variables.find(variable => variable.name === name);
+        let variable = this.findVariable(name);
         if(variable?.deleted) throw new Error(`The variable ${name} is deleted.`)
         if(variable) return variable;
 
@@ -213,11 +248,14 @@ export class StackFrameState {
         throw new Error(`The variable ${name} is not defined.`)
     }
 
-    getFunction(name: string): Function | undefined {
-        return this.stackFrame.getFunction(name);
+    getFunction(name: string): {function: Function, stack: StackFrameState} | undefined {
+        const def = this.stackFrame.getFunction(name);
+        if(def) return {function: def, stack: this};
+        if(this.parent) return this.parent.getFunction(name);
+        return undefined;
     }
 
-    getFunctionStrict(name: string): Function {
+    getFunctionStrict(name: string): {function: Function, stack: StackFrameState} {
         const func = this.getFunction(name);
         if(func) return func;
 
@@ -278,6 +316,50 @@ export class M2Compiler {
         return compiled;
     }
 
+    compileControlFlow(node: ASTNode, stack: StackFrameState): string {
+        let compiled = '';
+        if(node.isWhileLoop){
+            const whileLoopScope = stack.getChildStackFrame(node);
+            const label = `loop${node.id}`;
+
+            compiled += generateWhileLoopStart(whileLoopScope, label);
+            
+            for(const child of whileLoopScope.node.children){
+                compiled += this.compileNode(child, whileLoopScope);
+            }
+            compiled += generateCondition(node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue, label, whileLoopScope);
+            compiled += generateWhileLoopEnd(whileLoopScope, label);
+        }
+        else if(node.isIfStatement){
+            const ifScope = stack.getChildStackFrame(node);
+
+            compiled += generateIfStart(ifScope, node.id, node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue);
+
+            for(const child of ifScope.node.children){
+                compiled += this.compileNode(child, ifScope);
+            }
+            
+            if(node.isIfChain){
+                compiled += generateIfEnd(ifScope, node.id, node.getLastElseNode().id);
+                compiled += this.compileControlFlow(node.elseNode, stack);
+            }else{
+                compiled += generateIfEnd(ifScope, node.id);
+            }
+        } else if(node.isElseStatement){
+            const elseScope = stack.getChildStackFrame(node);
+
+            compiled += generateElseStart(elseScope);
+
+            for(const child of elseScope.node.children){
+                compiled += this.compileNode(child, elseScope);
+            }
+
+            compiled += generateElseEnd(elseScope, node.id);
+        }
+
+        return compiled;
+    }
+
     compileNode(node: ASTNode, stack: StackFrameState): string {
         let compiled = '';
 
@@ -286,22 +368,14 @@ export class M2Compiler {
         }else if (node.isVariableAssignment){
             return generateAssignment(node, stack);
         } 
-        // if(node.isWhileLoop){
-        //     const whileLoopScope = stack.getChildrenScope(node);
-
-        //     compiled += generateWhileLoopStart(whileLoopScope);
-            
-        //     for(const child of whileLoopScope.node.children){
-        //         compiled += this.compileNode(child, whileLoopScope);
-        //     }
-        //     compiled += generateCondition(node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue, 'loop', whileLoopScope);
-        //     compiled += generateWhileLoopEnd(whileLoopScope);
-        // }
+        if(node.isControlFlow){
+            return this.compileControlFlow(node, stack);
+        }
         else if(node.isFunctionCall){
             const func = stack.getFunction(node.functionCallName);
 
             if(func){
-                if(func.arguments.length !== node.functionCallArguments.length) throw new Error(`The function ${node.functionCallName} expects ${func.arguments.length} arguments but ${node.functionCallArguments.length} were given.`)
+                if(func.function.arguments.length !== node.functionCallArguments.length) throw new Error(`The function ${node.functionCallName} expects ${func.function.arguments.length} arguments but ${node.functionCallArguments.length} were given.`)
                 compiled += generateFunctionCall(node.functionCallName, node.functionCallArguments, stack);
             }else if(isBuiltinFunction(node.functionCallName)){
                 compiled += generateBuiltinFunction(node.functionCallName, node.functionCallArguments, stack);
@@ -334,7 +408,7 @@ export class M2Compiler {
             const func = stack.getFunction(node.functionDefinitionName);
 
             if(func){
-                const definition = generateFunctionDefinition(func.name, func.arguments, stack);
+                const definition = generateFunctionDefinition(func.function.name, func.function.arguments, stack);
                 
                 for(const child of node.children){
                     compiled += this.compileNode(child, stack) + '\n';

@@ -3,9 +3,7 @@ import { StackFrameState, VariableState } from "../compiler/m2-compiler"
 import { AArch64InstructionWrapper } from "./aarch64-low-level"
 import { Register } from "./aarch64-registry"
 
-export const DataRegistry = [
-    'printFormat1Long: .asciz "%ld\\n"',
-    'printFormat1Int: .asciz "%d\\n"'
+export const DataRegistry: string[] = [
 ]
 
 export interface BuiltinFunction {
@@ -25,13 +23,13 @@ export type BUILTIN_FUNCTION =
 
 function buildParameter(node: ASTNode, argPos: number, stackFrame: StackFrameState): string {
     if(node.isValueLiteral){
-        return AArch64InstructionWrapper.storeLiteralInRegister(node.valueLiteralValue, `X${argPos}` as Register);
+        return AArch64InstructionWrapper.loadLiteralInRegister(node.valueLiteralValue, `X${argPos}` as Register);
     }else if(node.isIdentifierVariable){
         const variable = stackFrame.getVariableStrict(node.identifierVariableName);
         if(variable.register)
-            return AArch64InstructionWrapper.storeRegisterInRegister(variable.register, `X${argPos}` as Register)
+            return AArch64InstructionWrapper.loadRegisterInRegister(variable.register, `X${argPos}` as Register)
         if(variable.stackOffset !== undefined)
-            return AArch64InstructionWrapper.storeStackInRegister(variable.stackOffset, `X${argPos}` as Register);
+            return AArch64InstructionWrapper.loadStackToRegister(variable.stackOffset, `X${argPos}` as Register);
     }
 
     throw new Error(`The variable ${node.toString()} is not supported.`)
@@ -54,13 +52,13 @@ function buildVariadicStackOnly(node: ASTNode, argPos: number, stackFrame: Stack
 
 // TODO: Optimize with multiple arguments with same instruction
 function compilePrint(args: ASTNode[], stackFrame: StackFrameState){
-    const formatName = `printFormat${args.length}Long` 
+    const formatName = `printFormat${args.length}Long`
     stackFrame.addGlobal(
         `${formatName}: .asciz "${args.map(arg => '%ld').join(' ')}\\n"`
     )
 
     return `
-    ADRP X0, ${formatName}@PAGE ; printf format str
+    ADRP X0, ${formatName}@PAGE
     ADD X0, X0, ${formatName}@PAGEOFF
     ${args.map((arg, i) => 
         buildVariadicStackOnly(arg, i, stackFrame)

@@ -47,25 +47,58 @@ export class AArch64Utilities {
         switch(operator){
             case '+=':
                 return 'ADD';
-                break;
             case '-=':
                 return 'SUB';
-                break;
             case '*=':
                 return 'MUL';
-                break;
             case '/=':
                 return 'DIV';
-                break;
             case '%=':
                 return 'MOD';
-                break;
+            default:
+                throw new Error(`The operator ${operator} is not supported.`)
+        }
+    }
+
+    static getCondition(operator: string, inverted: boolean = false){
+        if(inverted){
+            switch(operator){
+                case '==':
+                    return 'BNE';
+                case '!=':
+                    return 'BEQ';
+                case '>':
+                    return 'BLE';
+                case '<':
+                    return 'BGE';
+                case '>=':
+                    return 'BLT';
+                case '<=':
+                    return 'BGT';
+                default:
+                    throw new Error(`The operator ${operator} is not supported.`)
+            }
+        }
+
+        switch(operator){
+            case '==':
+                return 'BEQ';
+            case '!=':
+                return 'BNE';
+            case '>':
+                return 'BGT';
+            case '<':
+                return 'BLT';
+            case '>=':
+                return 'BGE';
+            case '<=':
+                return 'BLE';
             default:
                 throw new Error(`The operator ${operator} is not supported.`)
         }
     }
 }
-    
+
 
 export const Registers = AArch64Utilities.getRegisters(0, 28);
 export const ArgumentRegisters = AArch64Utilities.getRegisters(0, 7);

@@ -1,5 +1,14 @@
 main(){
     var counter: int = 0;
-    counter += 1;
-    print(counter, counter, counter, counter, counter, counter);
+    while(counter < 50){
+        counter += 1;
+
+        if(counter == 42){
+            print(counter, counter, counter);
+        }else if(counter < 10){
+            print(counter, counter);
+        }else{
+            print(counter);
+        }
+    }
 }

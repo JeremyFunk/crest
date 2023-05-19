@@ -170,9 +170,7 @@ export class StackFrameDefinition {
     }
 
     getFunction(name: string): Function | undefined {
-        const func = this.functions.find(func => func.name === name);
-        if(func) return func;
-        return this.parent?.getFunction(name);
+        return this.functions.find(func => func.name === name);
     }
 
     getVariableDefinition(name: string): VariableDefinition | undefined {
