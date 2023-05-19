@@ -74,7 +74,7 @@ interface ReturnStatementNodeRaw {
 
 interface LoopRaw {
     node: 'control_flow';
-    type: "while_loop_statement" | "for_loop_statement"
+    type: "do_while_loop_statement" | "while_loop_statement" | "for_loop_statement"
     condition?: ASTNodeRaw;
     body: ASTNodeRaw[];
 }
@@ -194,7 +194,9 @@ export class ASTNode {
 
     // Control flow
     get isControlFlow() { return this.nodeType === "control_flow" }
+    get isLoop() { return this.isWhileLoop || this.isForLoop || this.isDoWhileLoop }
     get isWhileLoop() { return this.type === "while_loop_statement" }
+    get isDoWhileLoop() { return this.type === "do_while_loop_statement" }
     get isForLoop() { return this.type === "for_loop_statement" }
     get isIfChain() { return this.isIfStatement && this._else !== null }
     get elseNode() { return this._else! }
@@ -783,6 +785,23 @@ export class ASTParser {
                 return {
                     node: 'control_flow',
                     type: "while_loop_statement",
+                    condition,
+                    body,
+                };
+            }
+            else if (token.value === "do") {
+                const body = this.resolveScopeBraces();
+                this.expectTokensValue(["}"]);
+                this.skipNextToken();
+                this.expectTokensValue(["while", "("]);
+                this.skipNextToken();this.skipNextToken();
+                const condition = this.resolveValue();
+                this.expectTokensValue([")", ";"]);
+                this.skipNextToken();this.skipNextToken();
+
+                return {
+                    node: 'control_flow',
+                    type: "do_while_loop_statement",
                     condition,
                     body,
                 };

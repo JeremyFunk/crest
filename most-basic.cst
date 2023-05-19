@@ -1,6 +1,6 @@
 main(){
     var counter: int = 0;
-    while(counter < 50){
+    do{
         counter += 1;
 
         if(counter == 42){
@@ -10,5 +10,5 @@ main(){
         }else{
             print(counter);
         }
-    }
+    }while(counter < 50);
 }

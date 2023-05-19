@@ -19,8 +19,17 @@ ${[...stack.globals].join('\n')}
 .text
 `
 }
-
-
+type LabelElement = string & { __label: true }
+type Label = {
+    open: LabelElement,
+    close: LabelElement
+}
+export function createLabel(id: number, name: string): Label {
+    return {
+        open: `${name}_${id}` as LabelElement,
+        close: `${name}_${id}_end` as LabelElement
+    }
+}
 
 export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFrameState){
     if(!node.isVariableDefinition) throw new Error(`The node ${node.toString()} is not a variable declaration.`)
@@ -109,32 +118,47 @@ export function generateAssignment(node: ASTNode, stackFrame: StackFrameState){
 }
 
 
-export function generateWhileLoopStart(stackFrame: StackFrameState, label: string){
+export function generateDoWhileLoopStart(stackFrame: StackFrameState, label: Label){
     return `
     ${AArch64InstructionWrapper.allocateStackMemory(stackFrame.stackFrameSize)}
-${label}:
+${label.open}:
 `
 }
-export function generateWhileLoopEnd(stackFrame: StackFrameState, label: string){
+export function generateDoWhileLoopEnd(stackFrame: StackFrameState, label: Label, left: ASTNode, right: ASTNode, operator: string){
     return `
-${label}_end:
+    ${generateCondition(left, right, operator, label.open, stackFrame, false)}
+${label.close}:
+    ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
+`
+}
+export function generateWhileLoopStart(stackFrame: StackFrameState, label: Label, left: ASTNode, right: ASTNode, operator: string){
+    return `
+    ${AArch64InstructionWrapper.allocateStackMemory(stackFrame.stackFrameSize)}
+${label.open}:
+    ${generateCondition(left, right, operator, label.close, stackFrame, true)}   
+`
+}
+export function generateWhileLoopEnd(stackFrame: StackFrameState, label: Label){
+    return `
+    B ${label.open}
+${label.close}:
     ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
 `
 }
 
-export function generateIfStart(stackFrame: StackFrameState, id: number, left: ASTNode, right: ASTNode, operator: string){
+export function generateIfStart(stackFrame: StackFrameState, label: Label, left: ASTNode, right: ASTNode, operator: string){
     return `
 ; If statement
-    ${generateCondition(left, right, operator, `if${id}_end`, stackFrame, true)}    
+    ${generateCondition(left, right, operator, label.close, stackFrame, true)}    
     ${AArch64InstructionWrapper.allocateStackMemory(stackFrame.stackFrameSize)}
 `
 }
-export function generateIfEnd(stackFrame: StackFrameState, id: number, chainEnd?: number){
+export function generateIfEnd(stackFrame: StackFrameState, label: Label, chainEnd?: Label){
     return `
 ; End of if statement
     ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
-    ${chainEnd ? `B if${chainEnd}_end` : ''}
-if${id}_end:
+    ${chainEnd ? `B ${chainEnd.close}` : ''}
+${label.close}:
 `
 }
 
@@ -145,10 +169,16 @@ export function generateElseStart(stackFrame: StackFrameState){
 `
 }
 
-export function generateElseEnd(stackFrame: StackFrameState, id: number){
+export function generateElseEnd(stackFrame: StackFrameState, chainLabel: Label){
     return `
     ${AArch64InstructionWrapper.deallocateStackMemory(stackFrame.stackFrameSize)}
-if${id}_end:
+${chainLabel.close}:
+    `
+}
+
+export function generateIfChainEnd(stackFrame: StackFrameState, label: Label){
+    return `
+    ${label.close}:
     `
 }
 

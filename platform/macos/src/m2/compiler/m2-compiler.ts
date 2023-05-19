@@ -1,6 +1,6 @@
 import { ASTNode } from "../../parser/parser"
 import { ArgumentRegisters, CallerSavedRegisters, Register } from "../code-generator/aarch64-registry"
-import { generateAssignment, generateCondition, generateDataSection, generateElseEnd, generateElseStart, generateFunctionCall, generateFunctionDefinition, generateIfEnd, generateIfStart, generateProgram, generateVariableDeclaration, generateWhileLoopEnd, generateWhileLoopStart } from "../code-generator/code-generator"
+import { generateAssignment, generateCondition, generateDataSection, generateElseEnd, generateElseStart, generateFunctionCall, generateFunctionDefinition, generateIfEnd, generateIfStart, generateProgram, generateVariableDeclaration, generateDoWhileLoopEnd, generateDoWhileLoopStart, createLabel, generateIfChainEnd, generateWhileLoopEnd, generateWhileLoopStart } from "../code-generator/code-generator"
 import { generateBuiltinFunction, isBuiltinFunction } from "../code-generator/builtins"
 import { DefinitionMarker, StackFrameDefinition, VariableDefinition, Function } from "./preparation"
 import { M2StackBuilder } from "./stack-builder"
@@ -318,35 +318,47 @@ export class M2Compiler {
 
     compileControlFlow(node: ASTNode, stack: StackFrameState): string {
         let compiled = '';
-        if(node.isWhileLoop){
-            const whileLoopScope = stack.getChildStackFrame(node);
-            const label = `loop${node.id}`;
+        if(node.isDoWhileLoop){
+            const doWhileLoopScope = stack.getChildStackFrame(node);
+            const label = createLabel(node.id, 'do_while_loop');
 
-            compiled += generateWhileLoopStart(whileLoopScope, label);
+            compiled += generateDoWhileLoopStart(doWhileLoopScope, label);
+            
+            for(const child of doWhileLoopScope.node.children){
+                compiled += this.compileNode(child, doWhileLoopScope);
+            }
+            compiled += generateDoWhileLoopEnd(doWhileLoopScope, label, node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue);
+        }
+        else if(node.isWhileLoop){
+            const whileLoopScope = stack.getChildStackFrame(node);
+            const label = createLabel(node.id, 'while_loop');
+            
+            compiled += generateWhileLoopStart(whileLoopScope, label, node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue);
             
             for(const child of whileLoopScope.node.children){
                 compiled += this.compileNode(child, whileLoopScope);
             }
-            compiled += generateCondition(node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue, label, whileLoopScope);
             compiled += generateWhileLoopEnd(whileLoopScope, label);
         }
         else if(node.isIfStatement){
             const ifScope = stack.getChildStackFrame(node);
+            const ifLabel = createLabel(node.id, 'if_statement');
 
-            compiled += generateIfStart(ifScope, node.id, node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue);
+            compiled += generateIfStart(ifScope, ifLabel, node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue);
 
             for(const child of ifScope.node.children){
                 compiled += this.compileNode(child, ifScope);
             }
-            
             if(node.isIfChain){
-                compiled += generateIfEnd(ifScope, node.id, node.getLastElseNode().id);
+                const chainLabel = createLabel(node.getLastElseNode().id, 'if_chain');
+                compiled += generateIfEnd(ifScope, ifLabel, chainLabel);
                 compiled += this.compileControlFlow(node.elseNode, stack);
             }else{
-                compiled += generateIfEnd(ifScope, node.id);
+                compiled += generateIfEnd(ifScope, ifLabel);
             }
         } else if(node.isElseStatement){
             const elseScope = stack.getChildStackFrame(node);
+            const chainLabel = createLabel(node.getLastElseNode().id, 'if_chain');
 
             compiled += generateElseStart(elseScope);
 
@@ -354,7 +366,7 @@ export class M2Compiler {
                 compiled += this.compileNode(child, elseScope);
             }
 
-            compiled += generateElseEnd(elseScope, node.id);
+            compiled += generateElseEnd(elseScope, chainLabel);
         }
 
         return compiled;
