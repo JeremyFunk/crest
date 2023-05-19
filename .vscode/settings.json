@@ -21,5 +21,38 @@
         "lexer-lang.h": "c",
         "win-helpers.h": "c",
         "basic.h": "c"
-    }
+    },
+    "hidefiles.configurationType": "local",
+    "hidefiles.globalConfig": {
+        "profiles": [
+            {
+                "name": "Default",
+                "detail": "",
+                "description": "Test",
+                "hidden": [
+                    ".vscode/",
+                    "platform/windows/",
+                    "docs/"
+                ]
+            },
+            {
+                "name": "Strict",
+                "detail": "Hide everything not immediately required",
+                "hidden": [
+                    "$Default"
+                ]
+            }
+        ]
+    },
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        ".vscode/": true,
+        "platform/windows/": true,
+        "docs/": true
+    },
+    "hidefiles.selectedProfile": "Default"
 }

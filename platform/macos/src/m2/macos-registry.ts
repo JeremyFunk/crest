@@ -1,4 +1,4 @@
-import { ASTNode } from "../../../parser/parser"
+import { ASTNode } from "../parser/parser"
 import { loadVariable } from "./code-generator"
 import { StackFrame, Variable } from "./m2-compiler"
 

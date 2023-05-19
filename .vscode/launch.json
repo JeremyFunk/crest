@@ -11,10 +11,10 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/src/index.ts",
+            "program": "${workspaceFolder}/platform/macos/src/index.ts",
             "preLaunchTask": "tsc: build - tsconfig.json",
             "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
+                "${workspaceFolder}/platform/macos/dist/**/*.js"
             ]
         }
     ]

@@ -1,4 +1,4 @@
-import { ASTNode } from "../../../parser/parser"
+import { ASTNode } from "../parser/parser"
 import { generateAssignment, generateCondition, generateExecutionStart, generateFunctionCall, generateFunctionDefinitionEnd, generateFunctionDefinitionStart, generateProgramEnd, generateProgramStart, generateVariableDeclaration, generateWhileLoopEnd, generateWhileLoopStart } from "./code-generator"
 import { generateIntegratedFunction, getVariableSize, isIntegratedFunction } from "./macos-registry"
 

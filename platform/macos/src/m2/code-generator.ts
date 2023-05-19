@@ -1,4 +1,4 @@
-import { ASTNode } from "../../../parser/parser"
+import { ASTNode } from "../parser/parser";
 import { StackFrame } from "./m2-compiler"
 import { DataRegistry } from "./macos-registry"
 
