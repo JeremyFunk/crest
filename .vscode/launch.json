@@ -7,14 +7,15 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
+            "name": "Debug macOS",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/platform/macos/src/index.ts",
-            "preLaunchTask": "tsc: build - tsconfig.json",
+            "cwd": "${workspaceFolder}/platform/macos",
+            "program": "src/index.ts",
+            "preLaunchTask": "Run macOS",
             "outFiles": [
-                "${workspaceFolder}/platform/macos/dist/**/*.js"
+                "dist/**/*.js"
             ]
         }
     ]

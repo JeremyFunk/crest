@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
       {
-        "command": "fish build.fish && ./executable ",
+        "command": "fish build.fish && ./res/bin/executable ",
         "label": "Run ASM",
         "type": "shell",
         "problemMatcher": []
@@ -35,10 +35,16 @@
         }
       },
       {
-        "type": "shell",
-        "command": "cd platform/macos && yarn dev",
+        "command": "yarn",
         "group": "build",
-        "label": "Run"
+        "args": [
+          "dev"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}/platform/macos/src"
+        },
+        "problemMatcher": [],
+        "label": "Run macOS",
       }
     ]
 }
