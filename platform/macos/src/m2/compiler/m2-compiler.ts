@@ -1,6 +1,6 @@
 import { ASTNode } from "../../parser/parser"
 import { ArgumentRegisters, CallerSavedRegisters, Register } from "../code-generator/aarch64-registry"
-import { generateAssignment, generateFunctionCall, generateFunctionDefinition, generateProgram, generateVariableDeclaration } from "../code-generator/code-generator"
+import { generateAssignment, generateDataSection, generateFunctionCall, generateFunctionDefinition, generateProgram, generateVariableDeclaration } from "../code-generator/code-generator"
 import { generateBuiltinFunction, isBuiltinFunction } from "../code-generator/builtins"
 import { DefinitionMarker, StackFrameDefinition, VariableDefinition, Function } from "./preparation"
 import { M2StackBuilder } from "./stack-builder"
@@ -27,7 +27,13 @@ export class StackFrameState {
     public args: VariableState[]
     public stackPointer: number
     public stackFrameSize: number
+    public globals: Set<string>
     private callerSavedRegisters: Register[]
+
+    public get globalState(): StackFrameState {
+        if(!this.parent) return this;
+        return this.parent.globalState;
+    }
 
     constructor(stackFrame: StackFrameDefinition, parent?: StackFrameState){
         this.stackFrame = stackFrame;
@@ -35,9 +41,10 @@ export class StackFrameState {
         this.variables = [];
         this.args = [];
         this.children = [];
+        this.globals = new Set();
         this.callerSavedRegisters = [...CallerSavedRegisters].reverse()
         this.stackPointer = 0;
-        this.stackFrameSize = stackFrame.stackFrameSize + 16;
+        this.stackFrameSize = stackFrame.stackFrameSize;
     }
 
     getRegisterForVariableOrThrow(variable: VariableDefinition): Register {
@@ -168,6 +175,11 @@ export class StackFrameState {
             this.stackPointer += variable.size;
         }
     }
+    allocateStackMemory(size: number): number {
+        const stackPointer = this.stackPointer;
+        this.stackPointer += size;
+        return stackPointer;
+    }
 
     getVariable(name: string): VariableState | undefined {
         let variable = this.variables.find(variable => variable.name === name);
@@ -225,6 +237,12 @@ export class StackFrameState {
     addStackFrame(stackFrame: StackFrameState): void {
         this.children.push(stackFrame);
     }
+
+    addGlobal(global: string): void {
+        if(this.parent) return this.parent.addGlobal(global);
+
+        this.globals.add(global);
+    }
 }
 
 
@@ -246,7 +264,7 @@ export class M2Compiler {
             }
         }
 
-        return program.program + compiled + program.defaults;
+        return program + compiled + generateDataSection(this.stack);
     }
 
     compileGlobals(stack: StackFrameState): string {

@@ -1,5 +1,5 @@
 main(){
     var counter: int = 0;
     counter += 1;
-    print(counter);
+    print(counter, counter, counter, counter, counter, counter);
 }

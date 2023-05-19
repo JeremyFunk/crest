@@ -6,20 +6,15 @@ import { DataRegistry } from "./builtins"
 import { AArch64Utilities } from "./aarch64-registry";
 import { FunctionArgumentDefinition } from "../compiler/preparation";
 
-export function generateProgram(stack: StackFrameState): {
-    program: string,
-    defaults: string
-    } { 
-    return {
-        program: AArch64Wrapper.generateProgram(stack),
-        defaults: generateDefaults()
-    }
+export function generateProgram(stack: StackFrameState){ 
+    return AArch64Wrapper.generateProgram(stack)
 }
 
-function generateDefaults(){
+export function generateDataSection(stack: StackFrameState){
     return `
 .data
 ${DataRegistry.join('\n')}
+${[...stack.globals].join('\n')}
 .align 4
 .text
 `
@@ -30,7 +25,7 @@ export function generateVariableDeclaration(node: ASTNode, stackFrame: StackFram
     const variable = stackFrame.getVariableDefinitionStrict(node.variableDefinitionName);
     stackFrame.declareVariable(variable);
 
-    return generateDirectAssignment(node, stackFrame);
+    return '\n' + generateDirectAssignment(node, stackFrame);
 }
 
 export function generateDirectAssignment(node: ASTNode, stackFrame: StackFrameState){

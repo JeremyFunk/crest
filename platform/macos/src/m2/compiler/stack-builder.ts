@@ -1,4 +1,5 @@
 import { ASTNode } from "../../parser/parser";
+import { getBuiltinCallStackRequirements, isBuiltinFunction } from "../code-generator/builtins";
 import { StackFrameState } from "./m2-compiler";
 import { StackFrameBuilder, StackFrameDefinition } from "./preparation";
 
@@ -49,6 +50,26 @@ export class M2StackBuilder {
             }else if(child.isWhileLoop){
                 const whileLoopScope = this.prepareScope(child, stack);
                 this.buildScope(whileLoopScope);
+            }else if(child.isFunctionCall){
+                const args = child.functionCallArguments
+
+                if(args.length > 8){
+                    throw new Error('The number of arguments is more than 8, this is currently not supported.')
+                }
+
+                if(isBuiltinFunction(child.functionCallName)){
+                    stack.pushFunctionCall({
+                        functionName: child.functionCallName,
+                        numberArguments: args.length,
+                        size: getBuiltinCallStackRequirements(child.functionCallName, args.length)
+                    })
+                }else{
+                    stack.pushFunctionCall({
+                        functionName: child.functionCallName,
+                        numberArguments: args.length,
+                        size: 0
+                    })
+                }
             }
         }
     }
