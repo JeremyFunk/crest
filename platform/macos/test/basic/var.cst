@@ -1,0 +1,4 @@
+main(){
+    var test: int = 0;
+    assert(test, 0);
+}

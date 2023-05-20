@@ -4,6 +4,7 @@ import { tokenize } from './tokenizer/tokenizer';
 import { ASTParser } from './parser/parser';
 import { execSync } from 'child_process';
 import { M2Compiler } from './m2/compiler/m2-compiler';
+import { formatASM } from './util/format-asm';
 
 const file = fs.readFileSync('../../most-basic.cst', 'utf8');
 const lexels = lexerize(file);
@@ -18,7 +19,20 @@ const ast = parser.parse();
 const m2 = new M2Compiler(ast);
 const assembly = m2.compile();
 
-fs.writeFileSync('../../res/bin/example.asm', assembly, 'utf8');
+fs.writeFileSync('../../res/bin/example.asm', formatASM(assembly), 'utf8');
 
-const result = execSync('cd ../.. && fish build.fish && ./res/bin/executable ');
-console.log(result.toString());
+console.log('Compilation successful. Executing...');
+console.log('-'.repeat(80))
+console.log('\n'.repeat(2));
+
+try{
+    execSync(
+        'cd ../.. && fish build.fish && ./res/bin/executable ',
+        {stdio: 'inherit'}
+    );
+}catch{
+    console.log('\n'.repeat(3));
+    console.log('-'.repeat(80))
+    console.log('Execution failed.');
+    process.exit(1);
+}

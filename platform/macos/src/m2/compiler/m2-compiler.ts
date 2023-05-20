@@ -1,20 +1,32 @@
 import { ASTNode } from "../../parser/parser"
 import { ArgumentRegisters, CallerSavedRegisters, Register } from "../code-generator/aarch64-registry"
-import { generateAssignment, generateCondition, generateDataSection, generateElseEnd, generateElseStart, generateFunctionCall, generateFunctionDefinition, generateIfEnd, generateIfStart, generateProgram, generateVariableDeclaration, generateDoWhileLoopEnd, generateDoWhileLoopStart, createLabel, generateIfChainEnd, generateWhileLoopEnd, generateWhileLoopStart } from "../code-generator/code-generator"
+import { generateAssignment, generateCondition, generateDataSection, generateElseEnd, generateElseStart, generateFunctionCall, generateFunctionDefinition, generateIfEnd, generateIfStart, generateProgram, generateVariableDeclaration, generateDoWhileLoopEnd, generateDoWhileLoopStart, createLabel, generateIfChainEnd, generateWhileLoopEnd, generateWhileLoopStart, generateUtilities, generateAssertStatement } from "../code-generator/code-generator"
 import { generateBuiltinFunction, isBuiltinFunction } from "../code-generator/builtins"
 import { DefinitionMarker, StackFrameDefinition, VariableDefinition, Function } from "./preparation"
 import { M2StackBuilder } from "./stack-builder"
+import { AArch64InstructionWrapper } from "../code-generator/aarch64-low-level"
 
-
-
-export interface VariableState extends Omit<VariableDefinition, typeof DefinitionMarker> {
-    deleted: boolean            // Whether the variable has been deleted. This has no relation to the real state of the variable, it is only used to keep track of the state of the variable for compiler optimizations.
-    register?: Register         // The register the variable is in. Can be undefined if the variable is exclusively on the stack.
-    stackOffset?: number        // The offset from the stack pointer. Can be undefined if the variable is exclusively in a register.
+type VariableBaseState = Omit<VariableDefinition, typeof DefinitionMarker> & {
     isArgument: boolean         // Whether the variable is a function argument.
     [DefinitionMarker]: false
 }
-
+type VariableStateRegister = VariableBaseState & {
+    register: Register      // The register the variable is in. Can be undefined if the variable is exclusively on the stack.
+    stackOffset?: undefined
+    lastStackOffset?: number // The last stack offset the variable was in. This is used to keep track of the stack offset when the variable is moved back to the stack, to avoid fragmenting the stack.
+    assigned: true          // Whether the variable has been assigned. This has no relation to the real state of the variable, it is only used to keep track of the state of the variable for compiler optimizations.
+}
+type VariableStateStack = VariableBaseState & {
+    stackOffset: number     // The offset from the stack pointer. Can be undefined if the variable is exclusively in a register.
+    register?: undefined    
+    assigned: true
+}
+type VariableStateUnassigned = VariableBaseState & {
+    stackOffset?: undefined // The variable is assigned and not used anymore.
+    register?: undefined
+    assigned: false
+}
+type VariableState = VariableStateRegister | VariableStateStack | VariableStateUnassigned
 /**
  * The moving data of the stack frame.
  * This is used to keep track of the dynamic state of the stack frame.
@@ -28,8 +40,10 @@ export class StackFrameState {
     public stackPointer: number
     public stackFrameSize: number
     public globals: Set<string>
+
     // Stack frames are not always breaking frames. For example, an if statement is not a new scope, but a function is.
     private callerSavedRegisters: Register[]
+    private temporaryRegisters: Register[][] = []
 
     public get globalState(): StackFrameState {
         if(!this.parent) return this;
@@ -48,6 +62,51 @@ export class StackFrameState {
         this.stackFrameSize = stackFrame.stackFrameSize;
     }
 
+    /**
+     * Temporary registers are maintained within an instruction.
+     */
+    pushInstruction() {
+        this.temporaryRegisters.push([]);
+    }
+
+    popInstruction() {
+        this.temporaryRegisters.pop();
+    }
+ 
+    private moveVariableToStack(variable: VariableStateRegister): VariableStateStack {
+        if(!variable.assigned) throw new Error(`Cannot move deleted variable ${variable.name} to stack.`)
+        if(variable.stackOffset !== undefined) throw new Error(`Variable ${variable.name} is already on the stack.`)
+        if(variable.register){
+            if(variable.lastStackOffset){ // The variable was already on the stack, so we can just move it back.
+                (variable as any).stackOffset = variable.lastStackOffset;
+                variable.lastStackOffset = undefined;
+                (variable as any).register = undefined;
+                return variable as any as VariableStateStack;
+            }
+    
+            // The variable was in a register, so we need to move it to the stack.
+            (variable.stackOffset as any) = this.allocateStackMemory(variable.size);
+            (variable as any).register = undefined;
+        }
+        return variable as any as VariableStateStack;
+    }
+
+    // TODO: This really shouldn't live here
+    functionCalled(): string {
+        let compiled = '';
+        for(let variable of this.variables){
+            if(variable.register){
+                const register = variable.register;
+                variable = this.moveVariableToStack(variable);
+                compiled += `
+                    ${AArch64InstructionWrapper.storeRegisterOnStack(register, variable.stackOffset)}
+                `
+            }
+        }
+
+        return compiled;
+    }
+
     getRegisterForVariableOrThrow(variable: VariableDefinition): Register {
         const register = this.getRegisterForVariable(variable);
         if(register) return register;
@@ -58,10 +117,9 @@ export class StackFrameState {
     declareVariable(variable: VariableDefinition): VariableState {
         if(this.getVariable(variable.name)) throw new Error(`The variable ${variable.name} is already defined in this stack frame.`);
 
-        this.stackPointer += variable.size;
         const state: VariableState = {
             ...variable,
-            deleted: false,
+            assigned: false,
             isArgument: false,
             [DefinitionMarker]: false
         }
@@ -75,7 +133,7 @@ export class StackFrameState {
         this.stackPointer += variable.size;
         const state: VariableState = {
             ...variable,
-            deleted: false,
+            assigned: false,
             isArgument: true,
             [DefinitionMarker]: false
         }
@@ -93,7 +151,7 @@ export class StackFrameState {
     getRegisterForVariable(variable: VariableDefinition): Register | undefined {
         const variableState = this.findVariable(variable.name);
         if(!variableState) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
-        if(!variableState.deleted) return variableState.register;
+        if(variableState.register) return variableState.register;
         return undefined;
     }
 
@@ -104,7 +162,7 @@ export class StackFrameState {
         
         const variableState = this.findVariable(variable.name);
         if(!variableState) throw new Error(`The variable ${variable.name} is not defined in this stack frame.`);
-        if(!variableState.deleted) variableState.register = register;
+        if(variableState.assigned) variableState.register = register;
     }
 
     setVariableToFreeRegister(variable: VariableState) {
@@ -156,13 +214,18 @@ export class StackFrameState {
         return registers;
     }
 
-    getFreeTemporaryRegister(): Register {
-        const register = this.getFreeRegister();
+    getFreeTemporaryRegister(allowNoInstruction = false): Register {
+        let register = this.getFreeRegister();
         if(!register) throw new Error(`There are no free registers.`);
+
+        if(this.temporaryRegisters.length === 0 && !allowNoInstruction) throw new Error(`There is no instruction to allocate a temporary register for.`);
+        if(!allowNoInstruction)
+            this.temporaryRegisters[this.temporaryRegisters.length - 1].push(register);
+
         return register;
     }
     getFreeTemporaryRegisters(count: number): Register[] {
-        const register = this.getFreeRegisters(count);
+        const register = this.getFreeRegisters(count);        
         if(!register || register.length !== count) throw new Error(`There are no free registers.`);
         return register;
     }
@@ -185,6 +248,12 @@ export class StackFrameState {
     isRegisterFree(register: Register): boolean {
         const selfAssign = this.variables.some(variableState => variableState.register === register && !variableState.deleted);
 
+        if(!selfAssign){
+            if(!this.temporaryRegisters.every(temporaryRegisters => !temporaryRegisters.includes(register))){
+                return false;
+            }
+        }
+
         if(!selfAssign && this.parent) return this.parent.isRegisterFree(register);
         return !selfAssign;
     }
@@ -206,13 +275,35 @@ export class StackFrameState {
         if(freeRegister){
             this.setVariableToRegister(variable, freeRegister);
         }else{
-            variable.stackOffset = this.stackPointer;
-            this.stackPointer += variable.size;
+            variable.stackOffset = this.allocateStackMemory(variable.size);
         }
     }
     allocateStackMemory(size: number): number {
         const stackPointer = this.stackPointer;
         this.stackPointer += size;
+
+        if(size != 0){
+            for(const variable of this.variables){
+                if(variable.stackOffset !== undefined){
+                    variable.stackOffset += size;
+                }
+            }
+        }
+
+        return stackPointer;
+    }
+    deallocateStackMemory(size: number): number {
+        const stackPointer = this.stackPointer;
+        this.stackPointer -= size;
+
+        if(size != 0){
+            for(const variable of this.variables){
+                if(variable.stackOffset !== undefined){
+                    variable.stackOffset -= size;
+                }
+            }
+        }
+
         return stackPointer;
     }
 
@@ -302,7 +393,7 @@ export class M2Compiler {
             }
         }
 
-        return program + compiled + generateDataSection(this.stack);
+        return program + compiled + generateUtilities() + generateDataSection(this.stack);
     }
 
     compileGlobals(stack: StackFrameState): string {
@@ -367,6 +458,10 @@ export class M2Compiler {
             }
 
             compiled += generateElseEnd(elseScope, chainLabel);
+        } else if(node.isAssertStatement){
+            const asserLabel = createLabel(node.id, 'assert_statement');
+            compiled += generateAssertStatement(node.conditionNode.leftNode, node.conditionNode.rightNode, node.conditionNode.operatorValue, asserLabel, stack);
+
         }
 
         return compiled;

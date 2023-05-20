@@ -87,6 +87,12 @@ interface IfStatementRaw {
     else?: IfStatementRaw;
 }
 
+interface AssertStatementRaw {
+    node: 'control_flow_directive';
+    type: "assert_statement"
+    condition: ASTNodeRaw;
+}
+
 interface ComparisonNodeRaw {
     node: "comparison";
     operator: string;
@@ -131,7 +137,8 @@ type ASTNodeRaw =
     | ArithmeticOperatorNodeRaw
     | TemplateStringNodeRaw
     | RootNodeRaw
-    | VariableAssignmentNodeRaw;
+    | VariableAssignmentNodeRaw
+    | AssertStatementRaw;
 
 
 function isScopedASTNodeRaw(node: ASTNodeRaw): node is (RootNodeRaw | FunctionDefinitionNodeRaw | MainFunctionNodeRaw | LoopRaw | IfStatementRaw) {
@@ -193,7 +200,7 @@ export class ASTNode {
     get identifierVariableName() { return this.name! }
 
     // Control flow
-    get isControlFlow() { return this.nodeType === "control_flow" }
+    get isControlFlow() { return this.nodeType?.startsWith("control_flow") } // Control flow or control flow directive
     get isLoop() { return this.isWhileLoop || this.isForLoop || this.isDoWhileLoop }
     get isWhileLoop() { return this.type === "while_loop_statement" }
     get isDoWhileLoop() { return this.type === "do_while_loop_statement" }
@@ -208,6 +215,7 @@ export class ASTNode {
     }
     get isIfStatement() { return this.type === "if_statement" && this.condition !== null }
     get isElseStatement() { return this.type === "if_statement" && this.condition === null }
+    get isAssertStatement() { return this.type === "assert_statement" }
 
     // Conditions
     get leftNode() { return this.left! }
@@ -841,6 +849,20 @@ export class ASTParser {
                     node: 'control_flow',
                     type: "if_statement",
                     body,
+                };
+            }else if (token.value === "assert") {
+                this.expectTokensValue(["("]);
+                this.skipNextToken();
+                const condition = this.resolveValue();
+                this.expectTokensValue([")"]);
+                this.skipNextToken();
+                this.expectTokensValue([";"]);
+                this.skipNextToken();
+
+                return {
+                    node: 'control_flow_directive',
+                    type: "assert_statement",
+                    condition,
                 };
             }
         }

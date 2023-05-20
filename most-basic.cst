@@ -1,14 +1,87 @@
 main(){
-    var counter: int = 0;
-    do{
-        counter += 1;
+    // Test Assignment
+    var a: int = 0;
+    
+    a = 5;
+    assert(a == 5);
+    print(a);
 
-        if(counter == 42){
-            print(counter, counter, counter);
-        }else if(counter < 10){
-            print(counter, counter);
-        }else{
-            print(counter);
-        }
-    }while(counter < 50);
+    // Test Operators variable literal
+    a = 0;
+
+    a += 5;
+    assert(a == 5);
+    print(a);
+
+    a -= 3;
+    assert(a == 2);
+    print(a);
+
+    a *= 10;
+    assert(a == 20);
+    print(a);
+
+    a /= 5;
+    assert(a == 4);
+    print(a);
+
+    a /= 3;
+    assert(a == 1);
+    print(a);
+    
+    a = 5;
+
+    a %= 3;
+    assert(a == 2);
+    print(a);
+
+    a %= 1;
+    assert(a == 0);
+
+    print(a);
+    
+    var b: int = 5;
+    a = 10;
+
+    a += b;
+    b += a;
+    a += b;
+
+    assert(a == 35);
+    assert(b == 20);
+    
+    print(a, b);
+
+    a -= b;
+    assert(a == 15);
+    b -= a;
+    assert(b == 5);
+
+    print(a, b);
+
+    a *= b;
+    assert(a == 75);
+    b *= a;
+    assert(b == 375);
+
+    print(a, b);
+
+    b /= a;
+    assert(b == 5);
+    a /= b;
+    assert(a == 15);
+
+    print(a, b);
+
+    a += 2;
+    assert(a == 17);
+
+    print(a, b);
+
+    a %= b;
+    assert(a == 2);
+    b %= a;
+    assert(b == 1);
+
+    print(a, b);
 }

@@ -5,9 +5,17 @@ import { StackFrameState } from "../compiler/m2-compiler"
 import { DataRegistry } from "./builtins"
 import { AArch64Utilities, Register } from "./aarch64-registry";
 import { FunctionArgumentDefinition } from "../compiler/preparation";
+import { generateErrorDataSection, generateErrorHandlers, getErrorCode, getErrorCodeForOperator } from "./aarch64-exception-handling";
 
 export function generateProgram(stack: StackFrameState){ 
     return AArch64Wrapper.generateProgram(stack)
+}
+
+export function generateUtilities(){
+    return `
+${generateErrorHandlers()}
+
+`
 }
 
 export function generateDataSection(stack: StackFrameState){
@@ -15,6 +23,7 @@ export function generateDataSection(stack: StackFrameState){
 .data
 ${DataRegistry.join('\n')}
 ${[...stack.globals].join('\n')}
+${generateErrorDataSection()}
 .align 4
 .text
 `
@@ -68,7 +77,7 @@ export function generateDirectAssignment(node: ASTNode, stackFrame: StackFrameSt
         if(variable.register){
             return AArch64InstructionWrapper.loadLiteralInRegister(value.valueLiteralValue, variable.register);
         }else if(variable.stackOffset !== undefined){
-            return AArch64InstructionWrapper.storeLiteralOnStack(value.valueLiteralValue, variable.stackOffset, stackFrame.getFreeTemporaryRegister());
+            return AArch64InstructionWrapper.storeLiteralOnStack(value.valueLiteralValue, variable.stackOffset, stackFrame.getFreeTemporaryRegister(true));
         }else{
             throw new Error(`The variable ${variable.name} has no register or stack offset.`);
         }
@@ -83,7 +92,7 @@ export function generateDirectAssignment(node: ASTNode, stackFrame: StackFrameSt
             if(variable.register)
                 return AArch64InstructionWrapper.loadStackToRegister(identifier.stackOffset, variable.register);
             if(variable.stackOffset !== undefined)
-                return AArch64InstructionWrapper.storeStackOnStack(identifier.stackOffset, variable.stackOffset, stackFrame.getFreeTemporaryRegister());
+                return AArch64InstructionWrapper.storeStackOnStack(identifier.stackOffset, variable.stackOffset, stackFrame.getFreeTemporaryRegister(true));
         }
         throw new Error(`The variable ${identifier.name} or ${variable.name} has no register or stack offset.`);
     }
@@ -94,24 +103,64 @@ export function generateDirectAssignment(node: ASTNode, stackFrame: StackFrameSt
 export function generateAssignment(node: ASTNode, stackFrame: StackFrameState){
     if(!node.isVariableAssignment) throw new Error(`The node ${node.toString()} is not an assignment.`)
 
-    const operator = AArch64Utilities.getOperator(node.operatorValue);
+    if(node.operatorValue === "="){
+        return generateDirectAssignment(node, stackFrame);
+    }
+
+    stackFrame.pushInstruction();
+
+    const {operator, supportsLiterals} = AArch64Utilities.getOperator(node.operatorValue);
 
     const value = node.variableAssignmentValue
+    let compiled = ''
     let source = ''
     
     if(value.isValueLiteral){
-        source = `#${value.valueLiteralValue}`
+        if(supportsLiterals){
+            source = `#${value.valueLiteralValue}`
+        }else{
+            const reg = stackFrame.getFreeTemporaryRegister();
+            compiled += AArch64InstructionWrapper.loadLiteralInRegister(value.valueLiteralValue, reg);
+            source = `${reg}`
+        }
     }else if(value.isIdentifierVariable){
         const variable = stackFrame.getVariableStrict(value.identifierVariableName);
-        source = `[SP, #${variable.stackOffset}]`
+
+        if(!variable.register){
+            if(!variable.stackOffset) throw new Error(`The variable ${variable.name} has no register or stack offset.`)
+            stackFrame.setVariableToFreeRegister(variable);
+            compiled += `
+            ${AArch64InstructionWrapper.loadStackToRegister(variable.stackOffset, variable.register!)}`
+            source = `[SP, #${variable.stackOffset}]`
+        }
+        
+        source = variable.register!;
     }
 
     const target = stackFrame.getVariableStrict(node.variableAssignmentName);
-    if(target.register)
-        return `${operator} ${target.register}, ${target.register}, ${source} ; Perform the assignment operation`
+
     if(target.stackOffset !== undefined){
         stackFrame.setVariableToFreeRegister(target);
-        AArch64InstructionWrapper.loadStackToRegister(target.stackOffset, stackFrame.getFreeTemporaryRegister());
+        compiled += `
+        ${AArch64InstructionWrapper.loadStackToRegister(target.stackOffset, target.register!)}`
+    }
+
+    if(target.register){
+        if(!operator) {
+            if(node.operatorValue === "%=") {
+                const reg = stackFrame.getFreeTemporaryRegister();
+                stackFrame.popInstruction();
+                return `
+                ${compiled}
+                UDIV ${reg}, ${target.register}, ${source}
+                MSUB ${target.register}, ${reg}, ${source}, ${target.register}`
+            }
+        }
+
+        stackFrame.popInstruction();
+        return `
+        ${compiled}
+        ${operator} ${target.register}, ${target.register}, ${source} ; Perform the assignment operation`
     }
 
     throw new Error(`The variable ${target.name} has no register or stack offset.`);
@@ -213,4 +262,27 @@ export function generateCondition(left: ASTNode, right: ASTNode, operator: strin
     ${rightV}
     CMP ${regs[0]}, ${regs[1]}
     ${condition} ${targetLabel}`
+}
+
+export function generateAssertStatement(left: ASTNode, right: ASTNode, operator: string, label: Label, stackFrame: StackFrameState){
+    let condition = AArch64Utilities.getCondition(operator);
+
+    const regs = stackFrame.getFreeTemporaryRegisters(2);
+
+    const leftV = loadNodeToRegister(left, regs[0], stackFrame);
+    const rightV = loadNodeToRegister(right, regs[1], stackFrame);
+
+    return `
+; Assert statement
+    ${leftV}
+    ${rightV}
+    CMP ${regs[0]}, ${regs[1]}
+    ${condition} _assertion_passed_${label.open}
+    ${AArch64InstructionWrapper.loadRegisterInRegister(regs[0], 'X1')}
+    ${AArch64InstructionWrapper.loadRegisterInRegister(regs[1], 'X2')}
+    ${AArch64InstructionWrapper.loadLiteralInRegister(getErrorCode('assertion', getErrorCodeForOperator(operator)), 'X0')}
+    B _error
+_assertion_passed_${label.open}:
+
+`
 }

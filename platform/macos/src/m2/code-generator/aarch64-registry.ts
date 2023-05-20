@@ -43,18 +43,18 @@ export class AArch64Utilities {
         return registers
     }
 
-    static getOperator(operator: string){
+    static getOperator(operator: string): {operator?: string, supportsLiterals: boolean}{
         switch(operator){
             case '+=':
-                return 'ADD';
+                return {operator: 'ADD', supportsLiterals: true}
             case '-=':
-                return 'SUB';
+                return {operator: 'SUB', supportsLiterals: true}
             case '*=':
-                return 'MUL';
+                return {operator: 'MUL', supportsLiterals: false}
             case '/=':
-                return 'DIV';
+                return {operator: 'SDIV', supportsLiterals: false}
             case '%=':
-                return 'MOD';
+                return {supportsLiterals: false}
             default:
                 throw new Error(`The operator ${operator} is not supported.`)
         }

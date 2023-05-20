@@ -1,4 +1,5 @@
 import { ASTNode } from "../../parser/parser"
+import { alignStack } from "../../util/format-asm"
 import { StackFrameState, VariableState } from "../compiler/m2-compiler"
 import { AArch64InstructionWrapper } from "./aarch64-low-level"
 import { Register } from "./aarch64-registry"
@@ -19,7 +20,7 @@ export interface BuiltinFunction {
 }
 
 export type BUILTIN_FUNCTION = 
-    'print'
+    | 'print'
 
 function buildParameter(node: ASTNode, argPos: number, stackFrame: StackFrameState): string {
     if(node.isValueLiteral){
@@ -56,15 +57,24 @@ function compilePrint(args: ASTNode[], stackFrame: StackFrameState){
     stackFrame.addGlobal(
         `${formatName}: .asciz "${args.map(arg => '%ld').join(' ')}\\n"`
     )
-
-    return `
-    ADRP X0, ${formatName}@PAGE
-    ADD X0, X0, ${formatName}@PAGEOFF
-    ${args.map((arg, i) => 
-        buildVariadicStackOnly(arg, i, stackFrame)
-    ).join('\n')}
-    
-    BL _printf`
+    stackFrame.pushInstruction();
+    const allocated = alignStack(args.length * 8);
+    let result = `
+        ${stackFrame.functionCalled()}
+        ${AArch64InstructionWrapper.allocateStackMemory(allocated)}`
+    stackFrame.allocateStackMemory(allocated);
+    result += `
+        ADRP X0, ${formatName}@PAGE
+        ADD X0, X0, ${formatName}@PAGEOFF
+        ${args.map((arg, i) => 
+            buildVariadicStackOnly(arg, i, stackFrame)
+        ).join('\n')}
+        BL _printf
+        ${AArch64InstructionWrapper.deallocateStackMemory(allocated)}
+    `
+    stackFrame.deallocateStackMemory(allocated);
+    stackFrame.popInstruction();
+    return result;
 }
 
 export const BUILTINFUNCTIONS: BuiltinFunction[] = [

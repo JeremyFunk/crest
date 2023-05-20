@@ -1,6 +1,5 @@
 import { AArch64InstructionWrapper } from "./aarch64-low-level"
 import { StackFrameState, VariableState } from "../compiler/m2-compiler"
-import { Register } from "./aarch64-registry"
 
 export class AArch64Wrapper {
     static generateProgram(stack: StackFrameState){
@@ -20,7 +19,7 @@ export class AArch64Wrapper {
         ADD SP, SP, #${stack.stackFrameSize}                 ; Deallocate stack frame
         MOV X0, #0                                           ; Set exit code
         RET
-    `
+`
     }
 
     static generateFunctionDefinitionStart(name: string, args: number, stack: StackFrameState){

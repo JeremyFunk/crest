@@ -7,7 +7,8 @@ export type CONTROL_FLOW_KEYWORDS =
     'do' |
     'break' |
     'continue' |
-    'return'
+    'return' |
+    'assert'
 
 export const CONTROL_FLOW_KEYWORDS = {
     'if': 'if',
@@ -19,6 +20,7 @@ export const CONTROL_FLOW_KEYWORDS = {
     'break': 'break',
     'continue': 'continue',
     'return': 'return',
+    'assert': 'assert'
 }
 
 const CONTROL_FLOW_KEYWORDS_LIST = Object.keys(CONTROL_FLOW_KEYWORDS)

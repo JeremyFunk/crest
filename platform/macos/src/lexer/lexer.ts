@@ -8,9 +8,35 @@ export function lexerize(text: string) {
     let token = '';
     let lastWasWhitespace = false;
     let stringSymbol = '';
+    let comment = false;
+    let multilineComment = false;
 
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
+
+        if(multilineComment){
+            if(char === '*' && text[i + 1] === '/'){
+                multilineComment = false;
+                i++;
+            }
+            continue
+        }
+
+        if(comment){
+            if(char === '\n'){
+                comment = false;
+            }
+            continue
+        }
+
+        if(char === '/' && text[i + 1] === '/'){
+            comment = true;
+            continue
+        }else if(char === '/' && text[i + 1] === '*'){
+            multilineComment = true;
+            continue
+        }
+
 
         if(stringSymbol !== ''){
             if(char === stringSymbol){
