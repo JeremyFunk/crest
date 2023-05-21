@@ -32,7 +32,8 @@
                 "hidden": [
                     ".vscode/",
                     "platform/windows/",
-                    "docs/"
+                    "docs/",
+                    "platform/macos/backup/"
                 ]
             },
             {
@@ -49,10 +50,7 @@
         "**/.svn": true,
         "**/.hg": true,
         "**/CVS": true,
-        "**/.DS_Store": true,
-        ".vscode/": true,
-        "platform/windows/": true,
-        "docs/": true
+        "**/.DS_Store": true
     },
-    "hidefiles.selectedProfile": "Default"
+    "hidefiles.selectedProfile": "Show All Files"
 }

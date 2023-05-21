@@ -1,87 +1,30 @@
 main(){
-    // Test Assignment
-    var a: int = 0;
-    
-    a = 5;
+    int a = 5;
+    a = clamp(2, a, 10);
     assert(a == 5);
-    print(a);
 
-    // Test Operators variable literal
-    a = 0;
-
-    a += 5;
-    assert(a == 5);
-    print(a);
-
-    a -= 3;
-    assert(a == 2);
-    print(a);
-
-    a *= 10;
+    a = clamp(20, a, 30);
     assert(a == 20);
-    print(a);
 
-    a /= 5;
-    assert(a == 4);
-    print(a);
+    a = clamp(5, a, 10);
+    assert(a == 5);
+}
 
-    a /= 3;
-    assert(a == 1);
-    print(a);
-    
-    a = 5;
+function int max(int a, int b){
+    if(a > b || a == b){
+        return a;
+    }
+    return b;
+}
 
-    a %= 3;
-    assert(a == 2);
-    print(a);
+function int min(int a, int b){
+    if(a <= b){
+        return a;
+    }
 
-    a %= 1;
-    assert(a == 0);
+    return b;
+}
 
-    print(a);
-    
-    var b: int = 5;
-    a = 10;
-
-    a += b;
-    b += a;
-    a += b;
-
-    assert(a == 35);
-    assert(b == 20);
-    
-    print(a, b);
-
-    a -= b;
-    assert(a == 15);
-    b -= a;
-    assert(b == 5);
-
-    print(a, b);
-
-    a *= b;
-    assert(a == 75);
-    b *= a;
-    assert(b == 375);
-
-    print(a, b);
-
-    b /= a;
-    assert(b == 5);
-    a /= b;
-    assert(a == 15);
-
-    print(a, b);
-
-    a += 2;
-    assert(a == 17);
-
-    print(a, b);
-
-    a %= b;
-    assert(a == 2);
-    b %= a;
-    assert(b == 1);
-
-    print(a, b);
+function int clamp(int min, int value, int max){
+    return max(min, min(value, max));
 }

@@ -1,305 +1,206 @@
 import { isDefinitionKeyword } from "../language/keywords/definition";
 import { isModifierKeyword } from "../language/keywords/modifier";
-import { isPrimitiveType } from "../language/keywords/primitive-type";
-import { isAssignmentOperator } from "../language/operator/assignment-operator";
+import { PrimitiveType, isPrimitiveType, toPrimitiveType } from "../language/keywords/primitive-type";
+import { ARITHMETIC_OPERATORS, getArithmeticOperator } from "../language/operator/arithmetic-operator";
+import { ASSIGNMENT_OPERATORS, getAssignmentOperator, isAssignmentOperator } from "../language/operator/assignment-operator";
+import { COMPARE_OPERATORS, getCompareOperator } from "../language/operator/compare-operator";
+import { LOGICAL_OPERATORS, getLogicalOperator } from "../language/operator/logical-operator";
 import {
     TOKENS_TYPE,
     TokenDefinition,
     isTokenTypeLiteral,
 } from "../tokenizer/tokenizer";
 
-interface RootNodeRaw {
-    node: "root";
-    body: ASTNodeRaw[];
+export type ASTNodeType =
+    'function_definition' |
+    'function_call' |
+    'identifier_variable' |
+    'variable_definition' |
+    'variable_assignment' |
+    'root' |
+    'literal_int' |
+    'literal_float' |
+    'literal_string' |
+    'literal_boolean' |
+    'literal_template_string' |
+    'operator_compare' |
+    'operator_arithmetic' |
+    'operator_logical' |
+    'argument_definition' |
+    'return_statement' |
+    'if_statement' |
+    'else_if_statement' |
+    'else_statement' |
+    'while_statement' |
+    'do_while_statement' |
+    'for_statement' |
+    'assert_statement' |
+    'unknown' 
+
+export type ASTNodeBase = {
+    nodeType: ASTNodeType;
 }
 
-interface TypeNodeRaw {
-    node: "type";
-    type: string;
+export interface ASTFunctionDefinition extends ASTNodeBase {
+    nodeType: 'function_definition'
+    name: string
+    arguments: ASTArgumentDefinition[]
+    returnType: PrimitiveType
+    body: ASTNode[]
 }
 
-interface ValueLiteralNodeRaw {
-    node: "value_literal";
-    value: string;
-    type: "string" | "integer" | "float";
+export interface ASTFunctionCall extends ASTNodeBase {
+    nodeType: 'function_call'
+    name: string
+    arguments: ASTNode[]
 }
 
-interface FunctionArgumentDefinitionNodeRaw {
-    node: "function_argument_definition";
-    name: string;
-    type: string;
+export interface ASTVariableDefinition extends ASTNodeBase {
+    nodeType: 'variable_definition'
+    name: string
+    type: PrimitiveType
+    constant: boolean
+    value: ASTNode | null
 }
 
-interface IdentifierVariableNodeRaw {
-    node: "identifier_variable";
-    name: string;
+export interface ASTVariableAssignment extends ASTNodeBase {
+    nodeType: 'variable_assignment'
+    operator: ASSIGNMENT_OPERATORS
+    name: string
+    value: ASTNode
 }
 
-interface IdentifierFunctionNodeRaw {
-    node: "identifier_function";
-    name: string;
+export interface ASTRoot extends ASTNodeBase {
+    nodeType: 'root'
+    body: ASTNode[]
 }
 
-interface FunctionDefinitionNodeRaw {
-    node: "function_definition";
-    name: string;
-    arguments: ASTNodeRaw[];
-    body: ASTNodeRaw[];
+export interface ASTIdentifierVariable extends ASTNodeBase {
+    nodeType: 'identifier_variable'
+    name: string
 }
 
-interface FunctionCallNodeRaw {
-    node: "function_call";
-    name: string;
-    arguments: ASTNodeRaw[];
+export interface ASTLiteralInt extends ASTNodeBase {
+    nodeType: 'literal_int'
+    value: number
+}
+export interface ASTLiteralFloat extends ASTNodeBase {
+    nodeType: 'literal_float'
+    value: number
+}
+export interface ASTLiteralBoolean extends ASTNodeBase {
+    nodeType: 'literal_boolean'
+    value: boolean
+}
+export interface ASTLiteralString extends ASTNodeBase {
+    nodeType: 'literal_string'
+    value: string
+}
+export interface ASTLiteralTemplateString extends ASTNodeBase {
+    nodeType: 'literal_template_string'
+    value: string
+    parts: ASTNode[]
 }
 
-interface MainFunctionNodeRaw {
-    node: "main_function";
-    arguments: ASTNodeRaw[];
-    body: ASTNodeRaw[];
+export interface ASTOperatorComparison extends ASTNodeBase {
+    nodeType: 'operator_compare'
+    operator: COMPARE_OPERATORS
+    left: ASTNode
+    right: ASTNode
 }
 
-interface VariableDefinitionNodeRaw {
-    node: "variable_definition";
-    name: string;
-    type: string;
-    value: ASTNodeRaw | null;
-    constant: boolean;
+export interface ASTOperatorArithmetic extends ASTNodeBase {
+    nodeType: 'operator_arithmetic'
+    operator: ARITHMETIC_OPERATORS
+    left: ASTNode
+    right: ASTNode
 }
 
-interface ReturnStatementNodeRaw {
-    node: "return_statement";
-    value: ASTNodeRaw | null;
+export interface ASTOperatorLogical extends ASTNodeBase {
+    nodeType: 'operator_logical'
+    operator: LOGICAL_OPERATORS
+    left: ASTNode
+    right: ASTNode
 }
 
-interface LoopRaw {
-    node: 'control_flow';
-    type: "do_while_loop_statement" | "while_loop_statement" | "for_loop_statement"
-    condition?: ASTNodeRaw;
-    body: ASTNodeRaw[];
+export interface ASTArgumentDefinition extends ASTNodeBase {
+    nodeType: 'argument_definition'
+    name: string
+    type: PrimitiveType
 }
 
-interface IfStatementRaw {
-    node: 'control_flow';
-    type: "if_statement"
-    condition?: ASTNodeRaw;
-    body: ASTNodeRaw[];
-    else?: IfStatementRaw;
+export interface ASTReturnStatement extends ASTNodeBase {
+    nodeType: 'return_statement'
+    value: ASTNode | null
 }
 
-interface AssertStatementRaw {
-    node: 'control_flow_directive';
-    type: "assert_statement"
-    condition: ASTNodeRaw;
+export interface ASTIfStatement extends ASTNodeBase {
+    nodeType: 'if_statement'
+    condition: ASTCondition
+    body: ASTNode[]
+    chain?: ASTElseIfStatement | ASTElseStatement
 }
 
-interface ComparisonNodeRaw {
-    node: "comparison";
-    operator: string;
-    left: ASTNodeRaw;
-    right: ASTNodeRaw;
+export interface ASTElseIfStatement extends ASTNodeBase {
+    nodeType: 'else_if_statement'
+    condition: ASTCondition
+    body: ASTNode[]
+    chain?: ASTElseIfStatement | ASTElseStatement
 }
 
-interface ArithmeticOperatorNodeRaw {
-    node: "arithmetic_operator";
-    operator: string;
-    left: ASTNodeRaw;
-    right: ASTNodeRaw;
+export interface ASTElseStatement extends ASTNodeBase {
+    nodeType: 'else_statement'
+    body: ASTNode[]
 }
 
-interface TemplateStringNodeRaw {
-    node: "template_string";
-    value: string;
-    parts: ASTNodeRaw[];
+export type ASTCondition = ASTOperatorComparison | ASTFunctionCall | ASTLiteralBoolean | ASTIdentifierVariable
+function isCondition(node: ASTNode): node is ASTCondition {
+    return node.nodeType === 'operator_compare' || node.nodeType === 'function_call' || node.nodeType === 'literal_boolean' || node.nodeType === 'identifier_variable'
 }
 
-interface VariableAssignmentNodeRaw {
-    node: "variable_assignment";
-    operator: string;
-    name: string;
-    value: ASTNodeRaw;
+export interface ASTWhileStatement extends ASTNodeBase {
+    nodeType: 'while_statement' | 'do_while_statement'
+    condition: ASTCondition
+    body: ASTNode[]
 }
 
-type ASTNodeRaw =
-    | TypeNodeRaw
-    | FunctionArgumentDefinitionNodeRaw
-    | IdentifierVariableNodeRaw
-    | IdentifierFunctionNodeRaw
-    | FunctionDefinitionNodeRaw
-    | FunctionCallNodeRaw
-    | MainFunctionNodeRaw
-    | VariableDefinitionNodeRaw
-    | ValueLiteralNodeRaw
-    | ReturnStatementNodeRaw
-    | LoopRaw
-    | IfStatementRaw
-    | ComparisonNodeRaw
-    | ArithmeticOperatorNodeRaw
-    | TemplateStringNodeRaw
-    | RootNodeRaw
-    | VariableAssignmentNodeRaw
-    | AssertStatementRaw;
-
-
-function isScopedASTNodeRaw(node: ASTNodeRaw): node is (RootNodeRaw | FunctionDefinitionNodeRaw | MainFunctionNodeRaw | LoopRaw | IfStatementRaw) {
-    return node.node === "root" || node.node === "function_definition" || node.node === "main_function" || node.node === "control_flow";
+export interface ASTForStatement extends ASTNodeBase {
+    nodeType: 'for_statement'
+    initializer: ASTNode | null
+    condition: ASTCondition
+    increment: ASTNode | null
+    body: ASTNode[]
 }
 
-export class ASTNode {
-    private nodeType: ASTNodeRaw['node'] | null = null;
-    private index: number;
-    private range: number;
-
-    get id() { return this.index }
-
-    private name: string | null = null;
-    private valueNode: ASTNode | null = null;
-    private valueLiteral: string | null | number = null;
-    private type: string | null = null;
-    private constant: boolean = false;
-    private condition: ASTNode | null = null;
-    private operator: string | null = null;
-    private left: ASTNode | null = null;
-    private right: ASTNode | null = null;
-    private arguments: ASTNode[] = [];
-
-    private _children: ASTNode[] = [];
-    private _else: ASTNode | null = null;
-    private _isScoped: boolean = false;
-
-    get children() { return this._children }
-
-    get isScoped() { return this._isScoped }
-    get isExecutionOrderInsentive() { return this.nodeType === "root" }
-    get isRoot() { return this.nodeType === "root" }
-    get isMainFunction() { return this.nodeType === "main_function" }
-
-    get isVariableDefinition() { return this.nodeType === "variable_definition" }
-    get variableDefinitionName() { return this.name! }
-    get variableDefinitionType() { return this.type! }
-    get variableDefinitionValue() { return this.valueNode! }
-
-    get isVariableAssignment() { return this.nodeType === "variable_assignment" }
-    get variableAssignmentName() { return this.name! }
-    get variableAssignmentValue() { return this.valueNode! }
-
-    get isFunctionDefinition() { return this.nodeType === "function_definition" }
-    get functionDefinitionName() { return this.isMainFunction ? "main" : this.name!  }
-    get functionDefinitionArguments() { return this.arguments }
-    get functionDefinitionBody() { return this._children }
-
-    get isValueLiteral() { return this.nodeType === "value_literal" }
-    get valueLiteralValue() { return this.valueLiteral! }
-    get valueLiteralType() { return this.type! }
-
-    get isFunctionCall() { return this.nodeType === "function_call" }
-    get functionCallName() { return this.name! }
-    get functionCallArguments() { return this.arguments }
-
-    get isIdentifierVariable() { return this.nodeType === "identifier_variable" }
-    get identifierVariableName() { return this.name! }
-
-    // Control flow
-    get isControlFlow() { return this.nodeType?.startsWith("control_flow") } // Control flow or control flow directive
-    get isLoop() { return this.isWhileLoop || this.isForLoop || this.isDoWhileLoop }
-    get isWhileLoop() { return this.type === "while_loop_statement" }
-    get isDoWhileLoop() { return this.type === "do_while_loop_statement" }
-    get isForLoop() { return this.type === "for_loop_statement" }
-    get isIfChain() { return this.isIfStatement && this._else !== null }
-    get elseNode() { return this._else! }
-    getLastElseNode(): ASTNode {
-        if(this._else){
-            return this._else.getLastElseNode();
-        }
-        return this;
-    }
-    get isIfStatement() { return this.type === "if_statement" && this.condition !== null }
-    get isElseStatement() { return this.type === "if_statement" && this.condition === null }
-    get isAssertStatement() { return this.type === "assert_statement" }
-
-    // Conditions
-    get leftNode() { return this.left! }
-    get rightNode() { return this.right! }
-    get operatorValue() { return this.operator! }
-
-    get conditionNode() { return this.condition! }
-
-
-    constructor(raw: ASTNodeRaw, index: number) {
-        this.nodeType = raw.node;
-        this._isScoped = false;
-        this.index = index;
-
-        if(isScopedASTNodeRaw(raw)){
-            this._isScoped = true;
-            this._children = raw.body.map(node => {
-                const result = new ASTNode(node, index + 1);
-                index += result.range;
-                return result;
-            });
-        }
-
-        if((raw as any).condition){
-            this.condition = new ASTNode((raw as any).condition, index + 1);
-            index += this.condition.range;
-        }
-
-        if((raw as any).value){
-            if(typeof (raw as any).value === "object"){
-                this.valueNode = new ASTNode((raw as any).value, index + 1);
-                index += this.valueNode.range;
-            }else {
-                this.valueLiteral = (raw as any).value;
-            }
-        }
-
-        if((raw as any).type){
-            this.type = (raw as any).type;
-        }
-
-        if((raw as any).name){
-            this.name = (raw as any).name;
-        }
-
-        if((raw as any).constant){
-            this.constant = (raw as any).constant;
-        }
-
-        if((raw as any).arguments){
-            this.arguments = (raw as any).arguments.map((node: ASTNodeRaw) => {
-                const result = new ASTNode(node, index + 1)
-                index += result.range;
-                return result;
-            });
-        }
-
-        if((raw as any).operator){
-            this.operator = (raw as any).operator;
-        }
-
-        if((raw as any).left){
-            this.left = new ASTNode((raw as any).left, index + 1);
-            index += this.left.range;
-        }
-
-        if((raw as any).right){
-            this.right = new ASTNode((raw as any).right, index + 1);
-            index += this.right.range;
-        }
-
-        if((raw as any).else){
-            this._else = new ASTNode((raw as any).else, index + 1);
-            index += this._else.range;
-        }
-
-        this.range = (index - this.index) + 1;
-    }
-
-    toString() {
-        return this.nodeType
-    }
+export interface ASTAssertStatement extends ASTNodeBase {
+    nodeType: 'assert_statement'
+    condition: ASTCondition
 }
-    
+
+
+export type ASTNode =
+    ASTFunctionDefinition |
+    ASTFunctionCall |
+    ASTIdentifierVariable |
+    ASTVariableDefinition |
+    ASTRoot |
+    ASTLiteralInt |
+    ASTLiteralFloat |
+    ASTLiteralBoolean |
+    ASTLiteralString |
+    ASTLiteralTemplateString |
+    ASTOperatorComparison |
+    ASTOperatorArithmetic |
+    ASTOperatorLogical |
+    ASTArgumentDefinition |
+    ASTVariableAssignment |
+    ASTReturnStatement |
+    ASTIfStatement |
+    ASTElseStatement |
+    ASTElseIfStatement |
+    ASTWhileStatement |
+    ASTForStatement |
+    ASTAssertStatement
 
 export class ASTParser {
     private index = 0;
@@ -359,7 +260,16 @@ export class ASTParser {
         return this.index < this.tokens.length;
     }
 
-    expectTokens(expected: TOKENS_TYPE[]) {
+    /**
+     * Used to check if the next token is a specific token type. If it is not, an error will be thrown.
+     * 
+     * Consider the following code:
+     * 
+     * expectTokens(["identifier", "whitespace", ["assignment_operator", "comparison_operator"]])
+     * 
+     * This will check if the next token is an identifier, then a whitespace, then either an assignment operator or a comparison operator.
+     */
+    expectTokens(expected: ((TOKENS_TYPE | {v: string}) | (TOKENS_TYPE | {v: string})[])[]) {
         let internalIndex = this.index;
         for (let j = 0; j < expected.length; j++) {
             while (this.tokens[internalIndex].type === "whitespace") {
@@ -368,8 +278,24 @@ export class ASTParser {
 
             const expectedToken = expected[j];
             const token = this.tokens[internalIndex];
+            
+            if(Array.isArray(expected[j])){
+                if((expected[j] as (TOKENS_TYPE | {v: string})[]).some((e) => (typeof e === "object" ? e.v === token.value : e === token.type))){
+                    internalIndex++;
+                    continue;
+                }
+                throw new Error(
+                    `Expected one of token types ${expectedToken} but got ${token.type} with value ${token.value}`
+                );
+            }
 
-            if (token.type !== expectedToken) {
+            if(typeof expectedToken === "object"){
+                if((expectedToken as any).v !== token.value){
+                    throw new Error(
+                        `Expected token value ${(expectedToken as any).v} but got ${token.value}`
+                    );
+                }
+            }else if (token.type !== expectedToken) {
                 throw new Error(
                     `Expected token type ${expectedToken} but got ${token.type}`
                 );
@@ -378,8 +304,7 @@ export class ASTParser {
             internalIndex++;
         }
     }
-
-    isTokens(expected: TOKENS_TYPE[]) {
+    expectTokenValues(expected: (string | string[])[]) {
         let internalIndex = this.index;
         for (let j = 0; j < expected.length; j++) {
             while (this.tokens[internalIndex].type === "whitespace") {
@@ -388,40 +313,20 @@ export class ASTParser {
 
             const expectedToken = expected[j];
             const token = this.tokens[internalIndex];
-
-            if (token.type !== expectedToken) {
-                return false;
-            }
-
-            internalIndex++;
-        }
-
-        return true;
-    }
-
-    expectTokensValue(expected: string[]) {
-        let internalIndex = this.index;
-        for (let j = 0; j < expected.length; j++) {
-            while (this.tokens[internalIndex].type === "whitespace") {
-                internalIndex++;
-            }
-
-            const expectedToken = expected[j];
-            const token = this.tokens[internalIndex];
-            if(!token){
+            
+            if(Array.isArray(expected[j])){
+                if((expected[j] as string[]).some((e) => e === token.value)){
+                    internalIndex++;
+                    continue;
+                }
                 throw new Error(
-                    `Expected token type ${expectedToken} but got no token`
-                );
-            }
-            if(token.type === "eof"){
-                throw new Error(
-                    `Expected token type ${expectedToken} but got eof`
+                    `Expected one of token types ${expectedToken} but got ${token.type} with value ${token.value}`
                 );
             }
 
-            if (token.value !== expectedToken) {
+            if(expectedToken !== token.value){
                 throw new Error(
-                    `Expected token type ${expectedToken} but got ${token.value}`
+                    `Expected token value ${expectedToken} but got ${token.value}`
                 );
             }
 
@@ -429,40 +334,24 @@ export class ASTParser {
         }
     }
 
-    isTokensValue(expected: string[]) {
-        let internalIndex = this.index;
-        for (let j = 0; j < expected.length; j++) {
-            while (this.tokens[internalIndex].type === "whitespace") {
-                internalIndex++;
-            }
-
-            const expectedToken = expected[j];
-            const token = this.tokens[internalIndex];
-            if(!token){
-                throw new Error(
-                    `Expected token type ${expectedToken} but got no token`
-                );
-            }
-            if(token.type === "eof"){
-                throw new Error(
-                    `Expected token type ${expectedToken} but got eof`
-                );
-            }
-
-
-            if (token.value !== expectedToken) {
-                return false;
-            }
-
-            internalIndex++;
+    expect(tokenType: TOKENS_TYPE, tokenValue?: string) {
+        const token = this.peakNextTokenStrict();
+        if (token.type !== tokenType) {
+            throw new Error(
+                `Expected token type ${tokenType} but got ${token.type}`
+            );
         }
 
-        return true;
+        if (tokenValue && token.value !== tokenValue) {
+            throw new Error(
+                `Expected token value ${tokenValue} but got ${token.value}`
+            );
+        }
     }
 
     parse(): ASTNode {
         try{
-            const nodes: ASTNodeRaw[] = [];
+            const nodes: ASTNode[] = [];
             let id = 0
 
             while (this.hasNextToken()) {
@@ -470,10 +359,12 @@ export class ASTParser {
     
                 if (token.type === "definition_keyword") {
                     if (token.value === "main") {
-                        const mainFunc: MainFunctionNodeRaw = {
-                            node: "main_function",
+                        const mainFunc: ASTFunctionDefinition = {
+                            nodeType: 'function_definition',
+                            name: "main",
                             arguments: this.resolveFunctionArgumentsDefinition(),
                             body: this.resolveScopeBraces(),
+                            returnType: 'void',
                         };
     
                         nodes.push(mainFunc);
@@ -482,8 +373,9 @@ export class ASTParser {
                             throw new Error("Unexpected end of file");
                         }
 
-                        const func: FunctionDefinitionNodeRaw = {
-                            node: "function_definition",
+                        const func: ASTFunctionDefinition = {
+                            nodeType: 'function_definition',
+                            returnType: toPrimitiveType(this.getNextToken().value),
                             name: this.getNextToken().value,
                             arguments: this.resolveFunctionArgumentsDefinition(),
                             body: this.resolveScopeBraces(),
@@ -491,17 +383,17 @@ export class ASTParser {
     
                         nodes.push(func);
                     }
-                } else if(token.type === "modifier_keyword"){
+                } else if(token.type === "modifier_keyword" || token.type === "type"){
                     this.reverse();
                     const variable = this.resolveVariableDeclaration();
                     nodes.push(variable);
                 }
             }
     
-            return new ASTNode({
-                node: "root",
+            return {
+                nodeType: 'root',
                 body: nodes,
-            }, id);
+            } 
         }catch(error){
             console.log(`Error at token ${this.index} of type ${this.tokens[this.index].type} with value ${this.tokens[this.index].value}`);
 
@@ -517,36 +409,35 @@ export class ASTParser {
 
     }
 
-    resolveFunctionArgumentsDefinition(): ASTNodeRaw[] {
+    resolveFunctionArgumentsDefinition(): ASTArgumentDefinition[] {
         const resolveFunctionArgumentDefinition =
-            (): FunctionArgumentDefinitionNodeRaw => {
-                this.expectTokens(["identifier", "colon", "type"]);
+            (): ASTArgumentDefinition => {
+                this.expectTokens(["type", "identifier"]);
 
-                // a : int
-                const identifier = this.getNextToken()!;
-                this.skipNextToken();
+                // int a
                 const type = this.getNextToken()!;
+                const identifier = this.getNextToken()!;
 
                 return {
-                    node: "function_argument_definition",
+                    nodeType: "argument_definition",
                     name: identifier.value,
-                    type: type.value,
+                    type: toPrimitiveType(type.value),
                 };
             };
 
-        this.expectTokensValue(["("]);
+        this.expect("scope_open_symbol", "(");
         this.skipNextToken();
 
-        const args: ASTNodeRaw[] = [];
+        const args: ASTArgumentDefinition[] = [];
 
         while (this.peakNextTokenStrict().value !== ")") {
             args.push(resolveFunctionArgumentDefinition());
             
             if(this.peakNextTokenStrict().type === "comma"){
                 this.skipNextToken();
-                this.expectTokens(["identifier"])
+                this.expectTokens(["type"])
             }else{
-                this.expectTokensValue([")"]);
+                this.expect('scope_close_symbol', ')');
             }
         }
         this.skipNextToken();
@@ -554,11 +445,11 @@ export class ASTParser {
         return args;
     }
 
-    resolveScopeBraces(): ASTNodeRaw[] {
-        this.expectTokensValue(["{"]);
+    resolveScopeBraces(): ASTNode[] {
+        this.expectTokens([{v: "{"}]);
         this.skipNextToken();
 
-        const nodes: ASTNodeRaw[] = [];
+        const nodes: ASTNode[] = [];
 
         while (this.peakNextTokenStrict().value !== "}") {
             nodes.push(this.resolveExpression());
@@ -567,36 +458,53 @@ export class ASTParser {
         return nodes;
     }
 
-    resolveValue(): ASTNodeRaw {
-        const token = this.getNextToken();
-        if(token.type === "eof"){
-            throw new Error("Unexpected end of file");
-        }
+    resolveValue(): ASTNode {
+        const _resolveValue = (): ASTNode => {
+            const token = this.getNextToken();
+            if(token.type === "eof"){
+                throw new Error("Unexpected end of file");
+            }
 
-        const result: ASTNodeRaw | undefined = (() => {
             if (token.type === "identifier") {
                 if (this.hasNextToken() && this.peakNextTokenStrict().value === "(") {
                     return this.resolveFunctionCall(token.value);
                 } else {
                     return {
-                        node: "identifier_variable",
                         name: token.value,
-                    };
+                        nodeType: "identifier_variable",
+                    } 
                 }
             }
 
             if (isTokenTypeLiteral(token.type)) {
-                return {
-                    node: "value_literal",
-                    type: token.type,
-                    value: token.value,
-                };
+                if(token.type === "boolean"){
+                    return {
+                        nodeType: "literal_boolean",
+                        value: token.value === "true",
+                    }
+                }else if(token.type === "string"){
+                    return {
+                        nodeType: "literal_string",
+                        value: token.value,
+                    }
+                }else if(token.type === "float"){
+                    return {
+                        nodeType: "literal_float",
+                        value: Number(token.value),
+                    }
+                }else if(token.type === "integer"){
+                    return {
+                        nodeType: "literal_int",
+                        value: Number(token.value),
+                    }
+                }
+
+                throw new Error(`Unexpected token type ${token.type}`);
             }
 
-            if(token.type === "template_string"){
-
-                const node: ASTNodeRaw = {
-                    node: "template_string",
+            if(token.type === "literal_template_string"){
+                const node: ASTLiteralTemplateString = {
+                    nodeType: "literal_template_string",
                     value: token.value,
                     parts: []
                 };
@@ -617,43 +525,64 @@ export class ASTParser {
 
                 return node;
             }
-        })();
 
-        if (result) {
-            const nextToken = this.peakNextToken();
-            if(!nextToken){
-                return result;
-            }
+            throw new Error(`Unexpected token type ${token.type}`);
+        }
 
+        const _resolveOperator = (left: ASTNode, nextToken: TokenDefinition): ASTNode => {
             if (nextToken.type === "compare_operator") {
                 this.skipNextToken();
                 return {
-                    node: "comparison",
-                    operator: nextToken.value,
-                    left: result,
+                    nodeType: 'operator_compare',
+                    operator: getCompareOperator(nextToken.value), 
+                    left,
                     right: this.resolveValue(),
-                };
-            }else if(nextToken.type === "arithmetic_operator"){
+                } 
+            } 
+            
+            if(nextToken.type === "logical_operator"){
                 this.skipNextToken();
                 return {
-                    node: "arithmetic_operator",
-                    operator: nextToken.value,
-                    left: result,
+                    nodeType: "operator_logical",
+                    operator: getLogicalOperator(nextToken.value),
+                    left,
                     right: this.resolveValue(),
-                };
+                }
             }
-            return result;
+
+            throw new Error(`Unexpected token type ${nextToken.type}`);
         }
 
-        throw new Error(`Unexpected token type ${token.type}`);
+        
+
+        let value = _resolveValue();
+        let nextToken = this.peakNextTokenStrict();
+
+        if(nextToken.type === "arithmetic_operator"){
+            this.skipNextToken();
+            value = {
+                nodeType: "operator_arithmetic",
+                operator: getArithmeticOperator(nextToken.value),
+                left: value,
+                right: _resolveValue(),
+            }
+
+            nextToken = this.peakNextTokenStrict();
+        }
+
+        if(nextToken.type === "compare_operator" || nextToken.type === "logical_operator"){
+            return _resolveOperator(value, nextToken);
+        }
+
+        return value
     }
 
-    resolveFunctionCall(name: string): ASTNodeRaw {
-        this.expectTokensValue(["("]);
+    resolveFunctionCall(name: string): ASTNode {
+        this.expect("scope_open_symbol", "(")
         this.skipNextToken();
 
-        const node: ASTNodeRaw = {
-            node: "function_call",
+        const node: ASTFunctionCall = {
+            nodeType: "function_call",
             name,
             arguments: [],
         };
@@ -668,7 +597,7 @@ export class ASTParser {
                     throw new Error(`Unexpected token type ${peak.type}`);
                 }
             }else {
-                this.expectTokensValue([")"]);
+                this.expect("scope_close_symbol", ")");
             }
         }
         
@@ -677,47 +606,44 @@ export class ASTParser {
         return node;
     }
 
-    resolveVariableDeclaration(): ASTNodeRaw {
-        this.expectTokens(["modifier_keyword"]);
+    resolveVariableDeclaration(): ASTNode {
+        this.expectTokens([["modifier_keyword", "type"]]);
         let token = this.getNextToken();
-        const modifier = token.value;
+
+        let constant = false;
+        if(token.type === "modifier_keyword"){
+            if(token.value === "const"){
+                constant = true;
+                this.expectTokens(["type"]);
+                token = this.getNextToken();
+            }else{
+                throw new Error(`Unexpected token type ${token.type}`);
+            }
+        }
+        
+        const type = token;
+
         this.expectTokens(["identifier"]);
         const identifier = this.getNextToken();
-        this.expectTokensValue([":"]);
-        this.skipNextToken();
-        this.expectTokens(["type"]);
-        const type = this.getNextToken();
-        token = this.peakNextTokenStrict();
-
-        if (token.type === "colon") {
-            this.skipNextToken();
-            return {
-                node: "variable_definition",
-                name: identifier.value,
-                type: type.value,
-                value: null,
-                constant: modifier === "const",
-            };
-        }
-
-        this.expectTokensValue(["="]);
+        
+        this.expect("assignment_operator", "=");
         this.skipNextToken();
 
         const value = this.resolveValue();
 
-        this.expectTokensValue([";"]);
+        this.expect("semicolon")
         this.skipNextToken();
 
         return {
-            node: "variable_definition",
+            nodeType: "variable_definition",
             name: identifier.value,
-            type: type.value,
+            type: toPrimitiveType(type.value),
             value,
-            constant: modifier === "const",
+            constant,
         };
     }
     
-    resolveAssignment(): ASTNodeRaw {
+    resolveAssignment(): ASTNode {
         this.expectTokens(["identifier"]);
         const identifier = this.getNextToken();
 
@@ -727,38 +653,38 @@ export class ASTParser {
 
         const operator = this.getNextToken();
         const value = this.resolveValue();
-        this.expectTokensValue([";"]);
+        this.expect("semicolon")
         this.skipNextToken();
 
         return {
-            operator: operator.value,
-            node: "variable_assignment",
+            nodeType: "variable_assignment",
+            operator: getAssignmentOperator(operator.value),
             name: identifier.value,
             value,
         };
     }
 
-    resolveExpression(): ASTNodeRaw {
+    resolveExpression(): ASTNode {
         let token = this.getNextToken();
 
         if (token.type === "identifier") {
             if(this.hasNextToken() && this.peakNextTokenStrict().value === "("){
                 const call = this.resolveFunctionCall(token.value);
-                this.expectTokensValue([";"]);
+                this.expect("semicolon")
                 this.skipNextToken();
                 return call;
             }else if(isAssignmentOperator(this.peakNextTokenStrict().value)){
                 this.reverse();
                 return this.resolveAssignment();
             }
-        } else if (isModifierKeyword(token.value)) {
+        } else if (isModifierKeyword(token.value) || token.type === "type") {
             this.reverse();
             return this.resolveVariableDeclaration();
         } else if (token.type === "control_flow_keyword") {
             if (token.value === "return") {
                 if(!this.hasNextToken()){
                     return {
-                        node: "return_statement",
+                        nodeType: "return_statement",
                         value: null,
                     };
                 }
@@ -767,65 +693,79 @@ export class ASTParser {
                 if (token.type === "semicolon") {
                     this.skipNextToken();
                     return {
-                        node: "return_statement",
+                        nodeType: "return_statement",
                         value: null,
                     };
                 }
 
                 const value = this.resolveValue();
-                this.expectTokensValue([";"]);
+                this.expect("semicolon")
                 this.skipNextToken();
 
                 return {
-                    node: "return_statement",
+                    nodeType: "return_statement",
                     value,
                 };
             } else if (token.value === "while") {
-                this.expectTokensValue(["("]);
+                this.expect("scope_open_symbol", "(")
                 this.skipNextToken();
                 const condition = this.resolveValue();
-                this.expectTokensValue([")"]);
+
+                if(!isCondition(condition)){
+                    throw new Error(`Unexpected token type ${condition.nodeType}`);
+                }
+
+                this.expect("scope_close_symbol", ")")
                 this.skipNextToken();
                 const body = this.resolveScopeBraces();
-                this.expectTokensValue(["}"]);
+                this.expect("scope_close_symbol", "}")
                 this.skipNextToken();
 
                 return {
-                    node: 'control_flow',
-                    type: "while_loop_statement",
+                    nodeType: 'while_statement',
                     condition,
                     body,
                 };
             }
             else if (token.value === "do") {
                 const body = this.resolveScopeBraces();
-                this.expectTokensValue(["}"]);
+                this.expect("scope_close_symbol", "}")
                 this.skipNextToken();
-                this.expectTokensValue(["while", "("]);
+                this.expectTokenValues(["while", "("]);
                 this.skipNextToken();this.skipNextToken();
                 const condition = this.resolveValue();
-                this.expectTokensValue([")", ";"]);
+                this.expectTokenValues([")", ";"]);
                 this.skipNextToken();this.skipNextToken();
 
+
+
+                if(!isCondition(condition)){
+                    throw new Error(`Unexpected token type ${condition.nodeType}`);
+                }
+
+
                 return {
-                    node: 'control_flow',
-                    type: "do_while_loop_statement",
+                    nodeType: 'do_while_statement',
                     condition,
                     body,
                 };
             }else if(token.value === "if" || token.value === "else if"){
-                this.expectTokensValue(["("]);
+                this.expect("scope_open_symbol", "(")
                 this.skipNextToken();
                 const condition = this.resolveValue();
-                this.expectTokensValue([")"]);
+                this.expect("scope_close_symbol", ")")
                 this.skipNextToken();
                 const body = this.resolveScopeBraces();
-                this.expectTokensValue(["}"]);
+                this.expect("scope_close_symbol", "}")
                 this.skipNextToken();
 
-                const ifStatement: IfStatementRaw = {
-                    node: 'control_flow',
-                    type: "if_statement",
+
+                if(!isCondition(condition)){
+                    throw new Error(`Unexpected token type ${condition.nodeType}`);
+                }
+
+                const ifStatement: ASTIfStatement | ASTElseIfStatement = {
+                    nodeType: token.value === "if" ? "if_statement" : "else_if_statement",
                     condition,
                     body,
                 };
@@ -833,35 +773,39 @@ export class ASTParser {
 
                 if(this.hasNextToken() && this.peakNextTokenStrict().value.startsWith("else")){
                     const elseStatement = this.resolveExpression();
-                    if(!(elseStatement.node === "control_flow" && elseStatement.type === "if_statement"))
-                        throw new Error(`Unexpected token type ${elseStatement.node} ${elseStatement.node}`);
+                    if(!(elseStatement.nodeType === "else_statement" || elseStatement.nodeType === "else_if_statement"))
+                        throw new Error(`Unexpected token type ${elseStatement.nodeType}. Expected else statement`);
 
-                    ifStatement.else = elseStatement;
+                    ifStatement.chain = elseStatement;
                 }
 
                 return ifStatement;
             }else if(token.value === "else"){
                 const body = this.resolveScopeBraces();
-                this.expectTokensValue(["}"]);
+                this.expect("scope_close_symbol", "}")
                 this.skipNextToken();
 
                 return {
-                    node: 'control_flow',
-                    type: "if_statement",
+                    nodeType: 'else_statement',
                     body,
                 };
             }else if (token.value === "assert") {
-                this.expectTokensValue(["("]);
+                this.expect("scope_open_symbol", "(")
                 this.skipNextToken();
                 const condition = this.resolveValue();
-                this.expectTokensValue([")"]);
+
+
+                if(!isCondition(condition)){
+                    throw new Error(`Unexpected token type ${condition.nodeType}`);
+                }
+
+                this.expect("scope_close_symbol", ")")
                 this.skipNextToken();
-                this.expectTokensValue([";"]);
+                this.expect("semicolon")
                 this.skipNextToken();
 
                 return {
-                    node: 'control_flow_directive',
-                    type: "assert_statement",
+                    nodeType: 'assert_statement',
                     condition,
                 };
             }

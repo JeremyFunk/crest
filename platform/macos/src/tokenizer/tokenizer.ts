@@ -31,6 +31,7 @@ type TOKENS_TYPES_DEFAULT =
     'string' |
     'float' |
     'integer' |
+    'boolean' |
     'comma' |
     'semicolon' |
     'colon' |
@@ -38,7 +39,7 @@ type TOKENS_TYPES_DEFAULT =
     'unknown' |
     'eof'
 
-type TEMPLATE_STRING_TYPE = 'template_string'
+type TEMPLATE_STRING_TYPE = 'literal_template_string'
 
 export type TOKENS_TYPE = TOKENS_TYPES_DEFAULT | TEMPLATE_STRING_TYPE
 
@@ -60,8 +61,8 @@ interface TemplateStringTokenDefinition {
 
 export type TokenDefinition = TokenDefinitionDefault | TemplateStringTokenDefinition
 
-export function isTokenTypeLiteral(type: TOKENS_TYPE): type is 'string' | 'float' | 'integer' {
-    return type === 'float' || type === 'integer' || type === 'string'
+export function isTokenTypeLiteral(type: TOKENS_TYPE): type is 'string' | 'float' | 'integer' | 'boolean' {
+    return type === 'float' || type === 'integer' || type === 'string' || type === 'boolean'
 }
 
 function isValidIdentifier(word: string) {
@@ -74,6 +75,10 @@ function isInteger(word: string) {
 
 function isFloat(word: string) {
     return /^[0-9]+\.[0-9]+$/.test(word)
+}
+
+function isBoolean(word: string) {
+    return word === 'true' || word === 'false'
 }
 
 function _tokenize(lexels: string[]){
@@ -101,8 +106,6 @@ function _tokenize(lexels: string[]){
             token.type = 'definition_keyword';
         }else if(isPrimitiveType(lexel)){
             token.type = 'type';
-        }else if(isPrimitiveType(lexel)){
-            token.type = 'type';
         }else if(isScopeOpenSymbol(lexel)){
             token.type = 'scope_open_symbol';
         }else if(isScopeCloseSymbol(lexel)){
@@ -113,6 +116,8 @@ function _tokenize(lexels: string[]){
             token.type = 'integer';
         }else if(isFloat(lexel)){
             token.type = 'float';
+        }else if(isBoolean(lexel)){
+            token.type = 'boolean';
         }else if(isOtherSymbol(lexel)){
             token.type = getOtherSymbolTokenType(lexel);
         }else if(isArithmeticOperator(lexel)){
@@ -131,7 +136,7 @@ function _tokenize(lexels: string[]){
             token.type = 'string';
         }else if(isTemplateString(lexel)){
             token = {
-                type: 'template_string',
+                type: 'literal_template_string',
                 value: lexel,
                 parts: [],
                 index: 0

@@ -1,9 +1,7 @@
 export type MODIFIER_KEYWORDS =
-    'var' |
     'const'
 
 export const MODIFIER_KEYWORDS = {
-    'var': 'var',
     'const': 'const',
 }
 
